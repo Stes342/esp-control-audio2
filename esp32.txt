@@ -1,0 +1,1433 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Preferences.h>
+#include <WiFiManager.h>
+#include <Ticker.h>
+#include <WiFiUdp.h>
+#include <mbedtls/base64.h> // встроено в ESP32
+#include <ArduinoJson.h>
+#include <base64.h>
+#include <Audio.h>
+const char* hostname = "power-control";
+#define RELAY_COUNT 4
+const uint8_t RELAY_PINS[RELAY_COUNT] = {5, 6, 7, 15};
+// I2S DAC pins (ESP32-S3)
+#define I2S_BCLK 5
+#define I2S_LRC  6
+#define I2S_DOUT 7
+#define AUDIO_PLAYLIST_MAX_ITEMS 10
+#define AUDIO_PLAYLIST_END_GRACE_MS 1500
+#define AUDIO_PLAYLIST_EARLY_END_PROTECT_MS 15000
+#define AUDIO_PLAYLIST_EARLY_END_GRACE_MS 8000
+#define AUDIO_PLAYLIST_STATE_CHECK_MS 200
+#define AUDIO_PLAYLIST_START_TIMEOUT_MS 12000
+unsigned long playlistStoppedAt = 0;
+
+WebServer server(80);
+Preferences preferences;
+Ticker relayTimers[RELAY_COUNT];
+
+bool relayStates[RELAY_COUNT];
+bool useTimer[RELAY_COUNT];
+bool timerCycleMode[RELAY_COUNT] = {false}; 
+int timerSeconds[RELAY_COUNT];
+int getTotalSeconds[RELAY_COUNT];
+String relayNames[RELAY_COUNT];
+String locationName;
+
+WiFiUDP udp;
+const unsigned int localUdpPort = 4210;
+char incomingPacket[255];
+const char* response = "ESP32 found!";
+Audio audio;
+
+struct RadioStation {
+  const char* name;
+  const char* url;
+};
+
+const RadioStation radioStations[] = {
+  {"Goldi", "http://195.85.219.90:8000/stream"}    
+};
+const int radioStationsCount = sizeof(radioStations) / sizeof(radioStations[0]);
+int currentStationIndex = 0;
+const char* radioUrl = nullptr;
+String currentStreamUrl = "";
+String customStationName = "";
+String customStationUrl = "";
+bool isCustomStation = false;
+bool isConnected = false;
+bool isPaused = false;
+int currentVolume = 15;
+
+// Playlist/queue support for sequential MP3 files.
+
+String playlistUrls[AUDIO_PLAYLIST_MAX_ITEMS];
+int playlistCount = 0;
+int playlistIndex = 0;
+bool playlistActive = false;
+bool playlistReturnToPrevious = true;
+bool playlistSawRunning = false;
+unsigned long playlistItemStartedAt = 0;
+unsigned long playlistLastStateCheck = 0;
+String playlistPreviousStreamUrl = "";
+
+String webLogin;
+String webPassword;
+String deviceName;
+
+WiFiManagerParameter custom_login("login", "Web Login", "admin", 32);
+WiFiManagerParameter custom_password("password", "Web Password", "12345678", 32);
+bool shouldSaveConfig = false;
+
+// --------------------------------------
+// Старый isAuthenticated() оставляем для чисто админских страниц,
+// но в рабочих функциях будем использовать checkAuth() для мультипользовательской аутентификации
+// --------------------------------------
+bool isAuthenticated() {
+  preferences.begin("auth", false);
+  webLogin = preferences.getString("login", "admin");
+  webPassword = preferences.getString("password", "123456789");
+  Serial.println("Auth_Log = " + preferences.getString("login", "admin"));
+  Serial.println("Auth_Pass = " + preferences.getString("password", "123456789"));
+  preferences.end();
+  if (!server.authenticate(webLogin.c_str(), webPassword.c_str())) {
+    server.requestAuthentication();
+    return false;
+  }
+  return true;
+}
+
+// --------------------------------------
+// Мультипользовательская аутентификация
+// --------------------------------------
+
+bool multiUserAuth(String &username) {
+  if (!server.hasHeader("Authorization")) return false;
+
+  String auth = server.header("Authorization");
+  if (!auth.startsWith("Basic ")) return false;
+
+  String encoded = auth.substring(6); // удалить "Basic "
+
+  // Декодируем base64
+  size_t len = encoded.length();
+  size_t outLen = 0;
+  unsigned char decoded[129]; // +1 для завершающего нуля
+  int res = mbedtls_base64_decode(decoded, sizeof(decoded), &outLen,
+                                  (const unsigned char *)encoded.c_str(), len);
+  if (res != 0) return false;
+  if (outLen >= sizeof(decoded)) return false;
+  decoded[outLen] = '\0';
+
+  String decodedStr = String((char *)decoded).substring(0, outLen);
+
+  int sep = decodedStr.indexOf(':');
+  if (sep == -1) return false;
+
+  String user = decodedStr.substring(0, sep);
+  String pass = decodedStr.substring(sep + 1);
+  user.trim();
+  pass.trim();
+  Serial.println("String user_multiUserAuth:"  + user);
+  Serial.println("String pass_multiUserAuth:"  + pass);
+
+  for (int i = 1; i <= 4; i++) {
+    String expectedUser = "user" + String(i);
+    Serial.println("expectedUser:"  + expectedUser);
+    if (user == expectedUser) {
+      preferences.begin("users", true);
+      String storedPass = preferences.getString((expectedUser + "_pass").c_str(), "");
+      Serial.println("storedPass_multiUserAuth:"  + storedPass);
+      preferences.end();
+      if (storedPass != "" && pass == storedPass) {
+        username = expectedUser;
+        Serial.println("username_multiUserAuth:"  + username);
+        Serial.println("expectedUser_multiUserAuth:"  + expectedUser);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+
+String decodeBase64(const String& input) {
+  size_t outputLen = 0;
+  size_t inputLen = input.length();
+  unsigned char output[257];  // размер буфера, при необходимости увеличь
+
+  int ret = mbedtls_base64_decode(output, sizeof(output), &outputLen,
+                                  (const unsigned char *)input.c_str(), inputLen);
+
+  if (ret != 0) {
+    Serial.println("Base64 decode error");
+    return "";
+  }
+
+  if (outputLen >= sizeof(output)) return "";
+  output[outputLen] = '\0';
+  return String((char *)output).substring(0, outputLen);
+}
+
+bool checkAuth(String &currentUser) {
+  // Проверка логина и пароля администратора
+  preferences.begin("auth", true);
+  String adminLogin = preferences.getString("login", "admin");
+  String adminPass = preferences.getString("password", "123456789");
+  preferences.end();
+
+  // Если логин/пароль совпали — считаем введённый логин текущим пользователем
+  if (server.hasHeader("Authorization")) {
+    String auth = server.header("Authorization");
+    auth.replace("Basic ", "");
+    auth.trim();
+    String decoded = decodeBase64(auth);
+    int separatorIndex = decoded.indexOf(':');
+    if (separatorIndex != -1) {
+      String inputLogin = decoded.substring(0, separatorIndex);
+      String inputPass = decoded.substring(separatorIndex + 1);
+      inputLogin.trim();
+      inputPass.trim();
+
+      if (inputLogin == adminLogin && inputPass == adminPass) {
+        currentUser = inputLogin;
+        return true;
+      }
+    }
+  }
+
+  // Если не админ – проверка мультипользователей
+  if (multiUserAuth(currentUser)) {
+    return true;
+  }
+
+  server.requestAuthentication();
+  return false;
+}
+
+
+// --------------------------------------
+// Проверка доступа к реле по пользователю (userX)
+// --------------------------------------
+bool checkUserAccess(const String& username, int relayNum) {
+  Serial.println("checkUserAccess_2_username: " + username);
+  Serial.println("checkUserAccess_2_relayNum: " + relayNum);
+  // relayNum ожидается от 0 до 3, в ключе храним как "userX_rY", где Y = relayNum+1
+  preferences.begin("users", true);
+  bool allowed = preferences.getBool((username + "_r" + String(relayNum + 1)).c_str(), false);
+  Serial.println(" Allowed1+: "  + allowed);
+  preferences.end();
+  return allowed;
+}
+
+
+
+void setVolume(int volume) {
+  if (volume < 0) volume = 0;
+  if (volume > 21) volume = 21;
+  currentVolume = volume;
+  audio.setVolume(volume);
+}
+
+bool connectToStation(const char* name, const char* url) {
+  Serial.print("Station: ");
+  Serial.print(name);
+  Serial.print(" -> ");
+  Serial.println(url);
+  return audio.connecttohost(url);
+}
+
+String endpointNameFromUrl(const String& url) {
+  int q = url.indexOf('?');
+  String clean = (q >= 0) ? url.substring(0, q) : url;
+  int slash = clean.lastIndexOf('/');
+  if (slash >= 0 && slash + 1 < clean.length()) return clean.substring(slash + 1);
+  return clean;
+}
+
+void handleAudioChangeStation() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!server.hasArg("station")) {
+    server.send(400, "text/plain", "Missing station parameter");
+    return;
+  }
+  int newIndex = server.arg("station").toInt();
+  if (newIndex < 0 || newIndex >= radioStationsCount) {
+    server.send(400, "text/plain", "Invalid station index");
+    return;
+  }
+  currentStationIndex = newIndex;
+  radioUrl = radioStations[currentStationIndex].url;
+  isCustomStation = false;
+  audio.stopSong();
+  delay(100);
+  isConnected = connectToStation(radioStations[currentStationIndex].name, radioUrl);
+  server.send(200, "text/plain", "OK");
+}
+
+void handleAudioVolume() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!server.hasArg("value")) {
+    server.send(400, "text/plain", "Missing value parameter");
+    return;
+  }
+  int newVolume = server.arg("value").toInt();
+  setVolume(newVolume);
+  server.send(200, "text/plain", "OK");
+}
+
+void handleAudioCustomStation() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!server.hasArg("url")) {
+    server.send(400, "text/plain", "Missing url parameter");
+    return;
+  }
+  customStationUrl = server.arg("url");
+  customStationName = server.hasArg("name") ? server.arg("name") : "Custom";
+  if (customStationName.length() == 0) customStationName = "Custom";
+  isCustomStation = true;
+  radioUrl = customStationUrl.c_str();
+  audio.stopSong();
+  delay(100);
+  isConnected = connectToStation(customStationName.c_str(), radioUrl);
+  isPaused = !isConnected;
+  server.send(200, "text/plain", "OK");
+}
+
+void handleAudioSetUrl() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Forbidden: Admin only");
+    return;
+  }
+  if (!server.hasArg("url")) {
+    server.send(400, "text/plain", "Missing url parameter");
+    return;
+  }
+  String newUrl = server.arg("url");
+  newUrl.trim();
+  if (!newUrl.startsWith("http://") && !newUrl.startsWith("https://")) {
+    server.send(400, "text/plain", "Invalid URL");
+    return;
+  }
+  currentStreamUrl = newUrl;
+  preferences.begin("audio", false);
+  preferences.putString("streamUrl", currentStreamUrl);
+  preferences.end();
+  audio.stopSong();
+  delay(100);
+  radioUrl = currentStreamUrl.c_str();
+  isCustomStation = true;
+  customStationName = endpointNameFromUrl(currentStreamUrl);
+  isConnected = connectToStation(customStationName.c_str(), radioUrl);
+  isPaused = !isConnected;
+  server.send(200, "text/plain", "OK");
+}
+
+void resetAudioPlaylist() {
+  for (int i = 0; i < AUDIO_PLAYLIST_MAX_ITEMS; i++) {
+    playlistUrls[i] = "";
+  }
+  playlistCount = 0;
+  playlistIndex = 0;
+  playlistActive = false;
+  playlistReturnToPrevious = true;
+  playlistSawRunning = false;
+  playlistItemStartedAt = 0;
+  playlistLastStateCheck = 0;
+  playlistStoppedAt = 0;
+  playlistPreviousStreamUrl = "";
+}
+
+bool startPlaylistItem(int index) {
+  if (index < 0 || index >= playlistCount) {
+    return false;
+  }
+
+  playlistIndex = index;
+  currentStreamUrl = playlistUrls[playlistIndex];
+  radioUrl = currentStreamUrl.c_str();
+  isCustomStation = true;
+  customStationName = endpointNameFromUrl(currentStreamUrl);
+
+  Serial.println("[audio] playlist item " + String(playlistIndex + 1) + "/" + String(playlistCount) + ": " + currentStreamUrl);
+  audio.stopSong();
+  delay(100);
+  isConnected = connectToStation(customStationName.c_str(), radioUrl);
+  isPaused = false;
+  if (!isConnected) {
+    Serial.println("[audio] playlist item connection failed, will skip after start timeout");
+  }
+  playlistSawRunning = false;
+  playlistItemStartedAt = millis();
+  playlistLastStateCheck = 0;
+  playlistStoppedAt = 0;
+  return isConnected;
+}
+
+void finishAudioPlaylist() {
+  Serial.println("[audio] playlist finished");
+  playlistActive = false;
+
+  if (playlistReturnToPrevious && playlistPreviousStreamUrl.length() > 0) {
+    currentStreamUrl = playlistPreviousStreamUrl;
+    radioUrl = currentStreamUrl.c_str();
+    isCustomStation = true;
+    customStationName = endpointNameFromUrl(currentStreamUrl);
+    Serial.println("[audio] returning to previous stream: " + currentStreamUrl);
+    audio.stopSong();
+    delay(100);
+    isConnected = connectToStation(customStationName.c_str(), radioUrl);
+    isPaused = !isConnected;
+  } else {
+    audio.stopSong();
+    isConnected = false;
+    isPaused = true;
+  }
+}
+
+void playNextPlaylistItem() {
+  if (!playlistActive) return;
+
+  int nextIndex = playlistIndex + 1;
+  if (nextIndex < playlistCount) {
+    startPlaylistItem(nextIndex);
+  } else {
+    finishAudioPlaylist();
+  }
+}
+
+void handleAudioPlaylist() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Forbidden: Admin only");
+    return;
+  }
+
+  String body = server.arg("plain");
+  if (body.length() == 0) {
+    server.send(400, "text/plain", "Missing JSON body");
+    return;
+  }
+
+  DynamicJsonDocument doc(2048);
+  DeserializationError error = deserializeJson(doc, body);
+  if (error) {
+    server.send(400, "text/plain", "Invalid JSON");
+    return;
+  }
+
+  JsonArray urls = doc["urls"].as<JsonArray>();
+  if (urls.isNull() || urls.size() == 0) {
+    server.send(400, "text/plain", "Missing urls array");
+    return;
+  }
+  if (urls.size() > AUDIO_PLAYLIST_MAX_ITEMS) {
+    server.send(400, "text/plain", "Too many urls");
+    return;
+  }
+
+  resetAudioPlaylist();
+  playlistPreviousStreamUrl = currentStreamUrl;
+  playlistReturnToPrevious = doc["returnToPrevious"] | true;
+
+  for (JsonVariant value : urls) {
+    String url = value.as<String>();
+    url.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      resetAudioPlaylist();
+      server.send(400, "text/plain", "Invalid URL in playlist");
+      return;
+    }
+    playlistUrls[playlistCount++] = url;
+  }
+
+  playlistActive = true;
+  bool started = startPlaylistItem(0);
+  server.send(started ? 200 : 500, "text/plain", started ? "PLAYLIST_STARTED" : "PLAYLIST_FAILED");
+}
+
+void handleAudioPause() {
+  Serial.println("[audio] /audio/pause requested");
+   String currentUser;
+
+  if (!checkAuth(currentUser)) {
+    Serial.println("[audio] /audio/pause auth failed");
+    return;
+  }
+
+  Serial.println("[audio] pause before: isConnected=" + String(isConnected) + ", isPaused=" + String(isPaused));
+   if (!isPaused) {
+     audio.stopSong();
+     isConnected = false;
+     isPaused = true;
+    }
+  Serial.println("[audio] pause after: isConnected=" + String(isConnected) + ", isPaused=" + String(isPaused));
+  server.send(200, "text/plain", "PAUSED");
+}
+
+void handleAudioPlay() {
+  Serial.println("[audio] /audio/play requested");
+  String currentUser;
+  if (!checkAuth(currentUser)) {
+    Serial.println("[audio] /audio/play auth failed");
+    return;
+  }
+
+  if (currentStreamUrl.length() > 0) {
+    radioUrl = currentStreamUrl.c_str();
+  }
+
+  if (radioUrl == nullptr || String(radioUrl).length() == 0) {
+    Serial.println("[audio] play failed: missing URL");
+    server.send(400, "text/plain", "Missing audio URL");
+    return;
+  }
+
+  Serial.println("[audio] play before: isConnected=" + String(isConnected) + ", isPaused=" + String(isPaused) + ", url=" + String(radioUrl));
+  if (isPaused || !isConnected) {
+    const char* stationName = isCustomStation ? customStationName.c_str() : radioStations[currentStationIndex].name;
+    audio.stopSong();
+    delay(100);
+    isConnected = connectToStation(stationName, radioUrl);
+    isPaused = !isConnected;
+  } else {
+    isPaused = false;
+  }
+
+  Serial.println("[audio] play after: isConnected=" + String(isConnected) + ", isPaused=" + String(isPaused));
+  server.send(200, "text/plain", isPaused ? "PAUSED" : "PLAYING");
+}
+
+void handleAudioToggle() {
+  Serial.println("[audio] /audio/toggle requested");
+  String currentUser;
+  if (!checkAuth(currentUser)) {
+    Serial.println("[audio] /audio/toggle auth failed");
+    return;
+  }
+
+  Serial.println("[audio] toggle before: isConnected=" + String(isConnected) + ", isPaused=" + String(isPaused));
+  if (isPaused || !isConnected) {
+    handleAudioPlay();
+    return;
+  }
+
+  // IMPORTANT: do not use audio.pauseResume() here.
+  // In this streaming setup pauseResume() can leave the radio stream audible.
+  // Stop the stream and reconnect from handleAudioPlay() when playback resumes.
+  audio.stopSong();
+  isConnected = false;
+  isPaused = true;
+
+  Serial.println("[audio] toggle after: isConnected=" + String(isConnected) + ", isPaused=" + String(isPaused));
+  server.send(200, "text/plain", "PAUSED");
+}
+
+bool isAdmin(const String& currentUser) {
+  preferences.begin("auth", true);
+  String adminLogin = preferences.getString("login", "admin");
+  preferences.end();
+  return currentUser == adminLogin;
+}
+
+// --------------------------------------
+// Обработчик POST запроса для сохранения настроек пользователей
+// --------------------------------------
+void handleSetUserAccess() {
+  // Только админ может изменять настройки пользователей
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Only admin can change user settings");
+    return;
+  }
+
+  preferences.begin("users", false);
+  for (int i = 1; i <= 4; i++) {
+    String uname = "user" + String(i);
+
+    // --- Сохраняем пароль только если он непустой ---
+    if (server.hasArg(uname + "_pass")) {
+      String newPass = server.arg(uname + "_pass");
+      if (newPass.length() > 0) {
+        String checkPass = preferences.getString((uname + "_pass").c_str(), "");
+        Serial.println("Check read before: " + uname + "_pass = " + checkPass);
+        preferences.putString((uname + "_pass").c_str(), newPass);
+        Serial.println("Updated " + uname + "_pass = " + newPass);
+      } else {
+        Serial.println("Skipped empty password for " + uname);
+      }
+    }
+
+    // --- Чекбоксы: сбрасываем все флаги и включаем только те, что отмечены ---
+    for (int j = 1; j <= 4; j++) {
+      String key = uname + "_r" + String(j);
+      bool isChecked = server.hasArg(key);  // передан ли чекбокс
+
+      preferences.putBool(key.c_str(), isChecked);  // сохраняем true или false
+      Serial.println("Set " + key + " = " + String(isChecked ? "YES" : "NO"));
+    }
+  }
+  preferences.end();
+
+  server.send(200, "text/plain", "User access settings updated");
+}
+
+
+
+// --------------------------------------
+// Пример функций для управления реле (toggle, timer) с дополнительной проверкой доступа
+// --------------------------------------
+void handleToggle() {
+  String currentUser;
+  // Проверяем общую аутентификацию: если админ – имеет полный доступ, иначе – проверяем права
+  if (!checkAuth(currentUser)) return;
+  Serial.println("Current user: " + currentUser);
+  //Serial.println("Relay ID: " + String(id));
+  //Serial.println("Access: " + String(checkUserAccess(currentUser, id) ? "GRANTED" : "DENIED"));
+  
+  String rawArg = server.arg("relay");
+  Serial.println("Raw relay arg: [" + rawArg + "]");
+  int id = rawArg.toInt();
+  Serial.println("Converted ID: " + String(id));
+
+  //int id = server.arg("relay").toInt();
+  Serial.println("checkUserAccess00_id: " + id);
+  Serial.println("handleToggle_relay: " + server.arg("relay"));
+  if (id < 0 || id >= RELAY_COUNT) {
+    server.send(400, "text/plain", "Invalid relay ID");
+    return;
+  }
+  
+  
+
+  // Если не админ, проверяем наличие права управления этим реле
+  //Serial.println("checkUserAccess0_currentUser: " + currentUser);
+  //Serial.println("checkUserAccess0_id: " + String(id));
+  bool access = checkUserAccess(currentUser, id);
+  Serial.println("User: " + currentUser + ", Relay ID: " + String(id));
+  Serial.println("Access allowed: " + String(access ? "YES" : "NO"));
+  if (!isAdmin(currentUser) && !checkUserAccess(currentUser, id)) {
+    Serial.println("checkUserAccess_currentUser: " + currentUser);
+    Serial.println("checkUserAccess_id: " + id);
+    server.send(403, "text/plain", "Access Denied");
+    return;
+  }
+  
+  // Далее переключаем реле как раньше
+  if (useTimer[id]) {
+    if (relayTimers[id].active()) relayTimers[id].detach();
+    if (!relayStates[id]) {
+      relayTimers[id].once(timerSeconds[id], [id]() {
+        relayStates[id] = true;
+        digitalWrite(RELAY_PINS[id], HIGH);
+        preferences.begin("relay", false);
+        preferences.putBool(("relay" + String(id)).c_str(), true);
+        preferences.end();
+      });
+    } else {
+      relayTimers[id].once(timerSeconds[id], [id]() {
+        relayStates[id] = false;
+        digitalWrite(RELAY_PINS[id], LOW);
+        preferences.begin("relay", false);
+        preferences.putBool(("relay" + String(id)).c_str(), false);
+        preferences.end();
+      });
+    }
+  } else {
+    relayStates[id] = !relayStates[id];
+    digitalWrite(RELAY_PINS[id], relayStates[id] ? HIGH : LOW);
+    preferences.begin("relay", false);
+    preferences.putBool(("relay" + String(id)).c_str(), relayStates[id]);
+    preferences.end();
+  }
+  server.send(200, "text/plain", "Toggled");
+}
+
+void handleTimer() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+    
+  int id = server.arg("id").toInt();
+  Serial.println("handleTimer_id: " + id );
+  if (id < 0 || id >= RELAY_COUNT) {
+    server.send(400, "text/plain", "Invalid relay ID");
+    return;
+  }
+  // Если не админ – проверяем право на это реле
+  if (!isAdmin(currentUser) && !checkUserAccess(currentUser, id)) {
+    server.send(403, "text/plain", "Access Denied");
+    return;
+  }
+    
+  useTimer[id] = server.arg("use") == "1";
+  timerSeconds[id] = server.arg("sec").toInt();
+  timerCycleMode[id] = server.hasArg("cycle") && server.arg("cycle") == "1";
+  if (useTimer[id] && timerSeconds[id] == 0) {
+    server.send(400, "text/plain", "Error: Timer duration cannot be zero.");
+    return;
+  }
+  
+  // Сохраняем состояние таймера для реле id (функция saveState() без изменений)
+  preferences.begin("relay", false);
+  preferences.putBool(("relay" + String(id)).c_str(), relayStates[id]);
+  preferences.putBool(("useTimer" + String(id)).c_str(), useTimer[id]);
+  preferences.putInt(("timerSec" + String(id)).c_str(), timerSeconds[id]);
+  preferences.putString(("name" + String(id)).c_str(), relayNames[id]);
+  preferences.putBool(("cycleMode" + String(id)).c_str(), timerCycleMode[id]);
+  preferences.end();
+  
+  if (relayTimers[id].active()) relayTimers[id].detach();
+  
+  if (useTimer[id]) {
+    if (timerCycleMode[id]) {
+      relayTimers[id].attach(timerSeconds[id], [id]() {
+        relayStates[id] = !relayStates[id];
+        digitalWrite(RELAY_PINS[id], relayStates[id] ? HIGH : LOW);
+        preferences.begin("relay", false);
+        preferences.putBool(("relay" + String(id)).c_str(), relayStates[id]);
+        preferences.end();
+      });
+    } else {
+      if (!relayStates[id]) {
+        relayTimers[id].once(timerSeconds[id], [id]() {
+          relayStates[id] = true;
+          digitalWrite(RELAY_PINS[id], HIGH);
+          preferences.begin("relay", false);
+          preferences.putBool(("relay" + String(id)).c_str(), true);
+          preferences.end();
+        });
+      } else {
+        relayTimers[id].once(timerSeconds[id], [id]() {
+          relayStates[id] = false;
+          digitalWrite(RELAY_PINS[id], LOW);
+          preferences.begin("relay", false);
+          preferences.putBool(("relay" + String(id)).c_str(), false);
+          preferences.end();
+        });
+      }
+    }
+  }
+  server.send(200, "text/plain", "OK");
+}
+// --------------------------------------
+// Остальные обработчики остаются без изменений
+// --------------------------------------
+
+// Пример страницы настроек – добавлена форма для изменения доступа пользователей.
+const char settings_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='UTF-8'>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings</title>
+  <style>
+    body { font-family: Arial; background: #f0f0f0; text-align: center; padding: 20px; }
+    .card { background: #fff; padding: 5px; margin: 15px auto; border-radius: 10px; max-width: 320px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input[type=text], input[type=password] {
+      width: 90%; padding: 10px; margin: 10px 0;
+      font-size: 16px; border-radius: 8px; border: 1px solid #ccc;
+    }
+    button {
+      background-color: #008CFF; color: white;
+      padding: 10px 20px; border: none;
+      font-size: 16px; margin: 10px; border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover { background-color: #006bb3; }
+    .home-button {
+      font-size: 20px;
+      text-decoration: none;
+      padding: 8px 16px;
+      background-color: #008CFF;
+      color: white;
+      border-radius: 8px;
+      transition: background-color 0.3s ease;
+    }
+    .home-button:hover { background-color: #006bb3; }
+  </style>
+</head>
+<body>
+  <div style="text-align: center; margin-top: 0px;">
+    <a href="/" class="home-button" title="Go to Home">🏠 Home</a>
+  </div>
+  <div class="card">
+    <h2 style="margin: 1px;">Change Admin Login / Password</h2>
+    <input type="text" id="login" placeholder="New Login" style="margin: 1px;"><br>
+    <input type="password" id="password" placeholder="New Password" style="margin: 1px;"><br>
+    <button onclick="confirmChange()">Save</button>      
+  </div>
+  <div class="card">
+    <h2 style="margin: 1px;">Reboot POWER CONTROL</h2>
+    <button onclick="confirmReboot()">Reboot</button>
+  </div>
+  <div class="card">
+    <h2 style="margin: 1px;">User Access Settings</h2>
+    <!-- Форма для каждого пользователя User1…User4 -->
+    <form id="userAccessForm">
+      <!-- Пример для User1 -->
+      <div class="user-block">
+        <h4 style="margin-bottom: 5px;">user1</h4>
+        <input type="password" name="user1_pass" placeholder="Password for user1" style="padding-top: 1px; margin: 1px;"><br>
+        <label><input type="checkbox" name="user1_r1"> Relay1</label>
+        <label><input type="checkbox" name="user1_r2"> Relay2</label>
+        <label><input type="checkbox" name="user1_r3"> Relay3</label>
+        <label><input type="checkbox" name="user1_r4"> Relay4</label>
+      </div>
+      <!-- Аналогичные блоки для User2, User3, User4 -->
+      <div class="user-block">
+        <h4 style="margin-bottom: 5px;">user2</h4>
+        <input type="password" name="user2_pass" placeholder="Password for user2" style="padding-top: 1px; margin: 1px;"><br>
+        <label><input type="checkbox" name="user2_r1"> Relay1</label>
+        <label><input type="checkbox" name="user2_r2"> Relay2</label>
+        <label><input type="checkbox" name="user2_r3"> Relay3</label>
+        <label><input type="checkbox" name="user2_r4"> Relay4</label>
+      </div>
+      <div class="user-block">
+        <h4 style="margin-bottom: 5px;">user3</h4>
+        <input type="password" name="user3_pass" placeholder="Password for user3" style="padding-top: 1px; margin: 1px;"><br>
+        <label><input type="checkbox" name="user3_r1"> Relay1</label>
+        <label><input type="checkbox" name="user3_r2"> Relay2</label>
+        <label><input type="checkbox" name="user3_r3"> Relay3</label>
+        <label><input type="checkbox" name="user3_r4"> Relay4</label>
+      </div>
+      <div class="user-block">
+        <h4 style="margin-bottom: 5px;">user4</h4>
+        <input type="password" name="user4_pass" placeholder="Password for user4" style="padding-top: 1px; margin: 1px;"><br>
+        <label><input type="checkbox" name="user4_r1"> Relay1</label>
+        <label><input type="checkbox" name="user4_r2"> Relay2</label>
+        <label><input type="checkbox" name="user4_r3"> Relay3</label>
+        <label><input type="checkbox" name="user4_r4"> Relay4</label>
+      </div>
+      <button type="submit">Save Access Settings</button>
+    </form>
+  </div>
+<script>
+
+
+
+
+function confirmChange() {
+  if (confirm("Are you sure you want to change admin login/password?")) {
+    const login = document.getElementById('login').value;
+    const password = document.getElementById('password').value;
+    fetch(`/setauth?new_login=${encodeURIComponent(login)}&new_password=${encodeURIComponent(password)}`)
+      .then(response => {
+        return response.text().then(text => {
+          if (!response.ok) {
+            alert("Error: " + text); // например, "Forbidden: Admin only"
+          } else {
+            alert(text); // например, "Credentials updated"
+          }
+        });
+      })
+      .catch(error => {
+        alert("Fetch error: " + error);
+      });
+  }
+}
+
+function confirmReboot() {
+  if (confirm("Reboot the module?")) {
+    fetch('/reboot')
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(text => {
+            alert("Error: " + text); // Показывает 403 и другие ошибки
+          });
+        } else {
+          return response.text().then(text => {
+            alert(text); // Показывает "Rebooting..."
+          });
+        }
+      })
+      .catch(error => {
+        alert("Fetch error: " + error);
+      });
+  }
+}
+
+document.getElementById('userAccessForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  fetch('/set_user_access', {
+    method: 'POST',
+    body: new URLSearchParams(formData)
+  })
+  .then(r => r.text())
+  .then(t => alert(t));
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  fetch("/getAccess")
+    .then(response => response.json())
+    .then(data => {
+      for (let key in data) {
+        const checkbox = document.querySelector(`input[name="${key}"]`);
+        if (checkbox) checkbox.checked = data[key];
+      }
+    });
+});
+
+</script>
+</body>
+</html>
+)rawliteral";
+
+// Остальной HTML для главной страницы оставляем без изменений
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='UTF-8'>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>%LOCATION%</title>
+  <style>
+    body { font-family: Arial; background: #f0f0f0; text-align: center; }    
+    .relay-card { background: #fff; padding: 20px; margin: 20px auto; border-radius: 10px; max-width: 300px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .button { background-color: #008CFF; color: white; padding: 10px; border: none; border-radius: 6px; font-size: 16px; margin: 10px 0; cursor: pointer; }
+    .button:hover { background-color: #006bb3; }    
+    .name-input { margin-top: 10px; padding: 8px; font-size: 16px; border-radius: 10px; width: 250px; border: none; background: #ddd; text-align: center; }    
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 26px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: 0.4s;
+      border-radius: 26px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px; width: 20px;
+      left: 3px; bottom: 3px;
+      background-color: white;
+      transition: 0.4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #008CFF; }
+    input:checked + .slider:before { transform: translateX(24px); }    
+    .timer-row {
+      display: flex; align-items: center; justify-content: center;
+      gap: 5px; margin-top: 10px;
+    }
+    .sec-label { margin-left: 4px; }    
+    #location {
+      width: 300px; font-size: 19px; color: #333;
+      background-color: #ddd; border: none; padding: 8px;
+      border-radius: 10px; text-align: center; margin-top: 10px;
+    }
+    .input {
+      padding: 5px; font-size: 14px; width: 50px;
+      border: 1px solid #ccc; border-radius: 1px;
+      text-align: left;
+    }
+    /* Увеличенный чекбокс и значок цикла */
+    .cycle-label {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+  }
+
+  .cycle-label input[type="checkbox"] {
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    margin: 0;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .cycle-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 23px;
+    font-weight: b900;
+    color: #666;
+    pointer-events: none;
+    z-index: 1;
+    user-select: none;
+  }
+
+  .cycle-label input[type="checkbox"]:checked + .cycle-icon {
+    color: #008CFF; /* синий при включении */
+  }
+  .location-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    max-width: 300px; /* Или любое нужное значение */
+  }
+
+  .location-wrapper input {
+    width: 100%;
+    padding-right: 40px; /* Чтобы не перекрывался текст кнопкой */
+    font-size: 16px;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+
+  .settings-button {
+    position: absolute;
+    right: 1px;
+    top: 60%;
+    transform: translateY(-50%);
+    font-size: 35px;
+    text-decoration: none;
+    padding: 1px 1px;
+    
+    border-radius: 8px;
+    color: #000;
+  }
+
+  
+  .time-label {
+      font-size: 12px;
+      line-height: 1;
+      vertical-align: bottom;
+  }      
+  </style>
+</head>
+<body>
+  <div class="location-wrapper">
+  <input id="location" value="%LOCATION%">
+  <a href="/settings" class="settings-button" title="Settings" style="height: 30px; bottom: 10px; padding-bottom: 20px;">&#9881;</a>
+  </div> 
+  
+  %AUDIO_PLAYER%
+
+<script>
+function changeStation(index) {
+  fetch('/audio/change?station=' + index).then(() => location.reload());
+}
+function updateVolume(value) {
+  document.getElementById('volumeValue').textContent = value;
+  fetch('/audio/volume?value=' + value);
+}
+function togglePause() {
+  console.log('[audio] pause/play button clicked');
+  fetch('/audio/toggle', { cache: 'no-store' })
+    .then(r => {
+      console.log('[audio] /audio/toggle status:', r.status);
+      return r.text().then(text => ({ ok: r.ok, text }));
+    })
+    .then(({ ok, text }) => {
+      console.log('[audio] /audio/toggle response:', text);
+      if (!ok) {
+        alert('Audio toggle error: ' + text);
+        return;
+      }
+      const state = text.trim();
+       document.getElementById('pauseBtn').innerText = (state === 'PAUSED') ? '▶ Play' : '⏸ Pause';
+
+    })
+    .catch(err => console.error('[audio] /audio/toggle failed:', err));
+}
+function playCustomStation() {
+  var name = document.getElementById('stationName').value;
+  var url = document.getElementById('stationUrl').value;
+  if (url) {
+    fetch('/audio/custom?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(url))
+      .then(() => location.reload());
+  } else {
+    alert('Введите URL радиостанции');
+  }
+}
+function saveLocation() {
+  const loc = document.getElementById('location').value;
+  fetch('/savelocation?loc=' + encodeURIComponent(loc))
+    .then(response => {
+      return response.text().then(text => {
+        if (!response.ok) {
+          alert("Error: " + text); // Например: "Forbidden: Admin only"
+        } else {
+          alert(text); // Например: "OK"
+        }
+      });
+    })
+    .catch(error => {
+      alert("Fetch error: " + error);
+    });
+}
+document.getElementById('location').addEventListener('change', saveLocation);
+</script>
+</body>
+</html>
+)rawliteral";
+
+String audioPlayerHtml() {
+  String html = "<div class='relay-card'>";
+  html += "<div><strong>Зараз грає:</strong> ";
+  html += endpointNameFromUrl(currentStreamUrl);
+  html += "</div><br>";
+  html += "<label>Громкость: <span id='volumeValue'>" + String(currentVolume) + "</span>/21</label>";
+  html += "<input type='range' min='0' max='21' value='" + String(currentVolume) + "' oninput='updateVolume(this.value)' style='width:100%; margin-top:10px;'>";
+  html += "<button type='button' class='button' id='pauseBtn' style='display:block; width:100%; margin-top:10px;' onclick='togglePause()'>";
+  html += (isPaused ? "▶ Play" : "⏸ Pause");
+  html += "</button>";
+  //for (int i = 0; i < radioStationsCount; i++) {
+    //html += "<button class='button' style='display:block; width:100%; margin-top:8px;";
+    //if (i == currentStationIndex && !isCustomStation) html += " background-color:#4CAF50;";
+    //html += "' onclick='changeStation(" + String(i) + ")'>" + String(radioStations[i].name) + "</button>";
+  //}
+  html += "</div>";
+  return html;
+}
+
+String processor(const String& var) {
+  if (var == "%AUDIO_PLAYER%") {
+    return audioPlayerHtml();
+  } else if (var == "%LOCATION%") {
+    return locationName;
+  }
+  return "";
+}
+
+void handleRoot() {
+  // Для главной страницы можно оставить проверку админской аутентификации или заменить на checkAuth()
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  String html = index_html;
+  html.replace("%LOCATION%", processor("%LOCATION%"));
+  html.replace("%AUDIO_PLAYER%", processor("%AUDIO_PLAYER%"));
+  server.send(200, "text/html", html);
+}
+
+void handleSaveName() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Forbidden: Admin only");
+    return;
+  }  
+  int id = server.arg("id").toInt();
+  if (id >= 0 && id < RELAY_COUNT) {
+    relayNames[id] = server.arg("name");
+    preferences.begin("relay", false);
+    preferences.putString(("name" + String(id)).c_str(), relayNames[id]);
+    preferences.end();
+  }
+  server.send(200, "text/plain", "Name saved");
+}
+
+  
+
+
+void handleSaveLocation() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Forbidden: Admin only");
+    return;
+  }  
+  locationName = server.arg("loc");
+  preferences.begin("relay", false);
+  preferences.putString("location", locationName);
+  preferences.end();
+  server.send(200, "text/plain", "Location saved");
+}
+
+void configModeCallback(WiFiManager *myWiFiManager) {
+  Serial.println("=== WiFiManager configuration mode ===");
+  shouldSaveConfig = true;
+}
+
+void setup() {
+  Serial.begin(115200);
+  WiFiManager wifiManager;
+  wifiManager.addParameter(&custom_login);
+  wifiManager.addParameter(&custom_password);
+  wifiManager.setTimeout(180);
+  wifiManager.setAPCallback(configModeCallback);
+
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  char suffix[7];
+  sprintf(suffix, "%02X%02X%02X", mac[3], mac[4], mac[5]);
+  deviceName = "power-" + String(suffix);
+  Serial.print("Device Name: ");
+  Serial.println(deviceName);
+
+  if (!wifiManager.autoConnect("POWER CONTROL", "12345678")) {
+    Serial.println("Can't connect! Rebooting...");
+    delay(3000);
+    ESP.restart();    
+  }
+  Serial.println("WiFi connected: " + WiFi.localIP().toString());
+  udp.begin(localUdpPort);
+  WiFi.setHostname(hostname);
+
+  if (shouldSaveConfig) {
+    preferences.begin("auth", false);
+    String newLogin = custom_login.getValue();
+    String newPassword = custom_password.getValue();
+    if (newLogin.length() > 0 && newPassword.length() > 0) {
+      preferences.putString("login", newLogin);
+      preferences.putString("password", newPassword);
+      Serial.println("Saved admin login/password from WiFiManager setup mode.");
+    }
+    preferences.end();
+  }  
+
+  //for (int i = 0; i < RELAY_COUNT; i++) {
+    //pinMode(RELAY_PINS[i], OUTPUT);
+  //}
+
+  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  audio.setVolume(currentVolume);
+  audio.forceMono(false);
+  audio.setConnectionTimeout(10000, 10000);
+  preferences.begin("audio", true);
+  currentStreamUrl = preferences.getString("streamUrl", radioStations[currentStationIndex].url);
+  preferences.end();
+  radioUrl = currentStreamUrl.c_str();
+  customStationName = endpointNameFromUrl(currentStreamUrl);
+  isCustomStation = true;
+  isConnected = connectToStation(customStationName.c_str(), radioUrl);
+  isPaused = !isConnected;
+
+  preferences.begin("relay", false);
+  for (int i = 0; i < RELAY_COUNT; i++) {
+    relayStates[i] = preferences.getBool(("relay" + String(i)).c_str(), false);
+    useTimer[i] = preferences.getBool(("useTimer" + String(i)).c_str(), false);
+    timerCycleMode[i] = preferences.getBool(("cycleMode" + String(i)).c_str(), false);
+    timerSeconds[i] = preferences.getInt(("timerSec" + String(i)).c_str(), 5);
+    relayNames[i] = preferences.getString(("name" + String(i)).c_str(), "Relay " + String(i + 1));
+    digitalWrite(RELAY_PINS[i], relayStates[i]);
+
+    if (relayStates[i] && useTimer[i]) {
+      relayTimers[i].once(timerSeconds[i], [i]() {
+        relayStates[i] = false;
+        digitalWrite(RELAY_PINS[i], LOW);
+        preferences.begin("relay", false);
+        preferences.putBool(("relay" + String(i)).c_str(), false);
+        preferences.end();
+      });
+    }
+  }
+  locationName = preferences.getString("location", "");
+  preferences.end();
+
+  // Зарегистрируем обработчики
+  server.on("/status", []() {
+    String json = "[";
+    for (int i = 0; i < RELAY_COUNT; i++) {
+      json += "{";
+      json += "\"id\":" + String(i) + ",";
+      json += "\"state\":" + String(relayStates[i]) + ",";
+      json += "\"useTimer\":" + String(useTimer[i]) + ",";
+      json += "\"seconds\":" + String(timerSeconds[i]) + ",";
+      json += "\"name\":\"" + relayNames[i] + "\"";
+      json += "}";
+      if (i < RELAY_COUNT - 1) json += ",";
+    }
+    json += "]";
+    server.send(200, "application/json", json);
+  });
+  
+  server.on("/", handleRoot);
+  server.on("/toggle", handleToggle);
+  server.on("/timer", handleTimer);
+  server.on("/savename", handleSaveName);
+  server.on("/savelocation", handleSaveLocation);
+  
+  server.on("/settings", []() {
+    if (!checkAuth(webLogin)) return;
+    server.send(200, "text/html", settings_html);
+  });
+  
+  server.on("/setauth", []() {
+    // Админ меняет свои учетные данные
+    String currentUser;
+    if (!checkAuth(currentUser)) return;
+    if (!isAdmin(currentUser)) {
+      server.send(403, "text/plain", "Forbidden: Admin only");
+      return;
+    }
+    String newLogin = server.arg("new_login");
+    String newPassword = server.arg("new_password");
+    if (newLogin.length() > 0 && newPassword.length() > 0) {
+      preferences.begin("auth", false);
+      preferences.putString("login", newLogin);
+      preferences.putString("password", newPassword);
+      preferences.end();
+      webLogin = newLogin;
+      webPassword = newPassword;
+    }
+    server.send(200, "text/plain", "Credentials updated");
+  });
+  
+  server.on("/set_user_access", HTTP_POST, handleSetUserAccess);
+
+
+  server.on("/reboot", []() {
+    String currentUser;
+    if (!checkAuth(currentUser)) return;
+    if (!isAdmin(currentUser)) {
+      server.send(403, "text/plain", "Forbidden: Admin only");
+      return;
+    }
+    server.send(200, "text/plain", "Rebooting...");
+    delay(1000);
+    ESP.restart();
+  });
+
+  
+  server.on("/identify", HTTP_GET, []() {
+    String macStr = WiFi.macAddress();
+    server.send(200, "text/plain", "ESP32-POWERCTRL|MAC=" + macStr + "|NAME=" + locationName);
+  });
+
+  server.on("/getAccess", HTTP_GET, []() {
+    DynamicJsonDocument doc(512);
+    preferences.begin("users", true);
+    for (int i = 1; i <= 4; i++) {
+      String uname = "user" + String(i);
+      for (int j = 1; j <= 4; j++) {
+        String key = uname + "_r" + String(j);
+        bool access = preferences.getBool(key.c_str(), false);
+        doc[key] = access;
+      }
+    }
+    preferences.end();
+    String json;
+    serializeJson(doc, json);
+    server.send(200, "application/json", json);
+  });
+  server.on("/audio/playlist", HTTP_POST, handleAudioPlaylist);
+  server.on("/audio/volume", HTTP_GET, handleAudioVolume);
+  //server.on("/audio/custom", HTTP_GET, handleAudioCustomStation);
+  server.on("/audio/seturl", HTTP_GET, handleAudioSetUrl);
+  server.on("/audio/play", HTTP_GET, handleAudioPlay);
+  server.on("/audio/pause", HTTP_GET, handleAudioPause);
+  server.on("/audio/toggle", HTTP_GET, handleAudioToggle);
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+  
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi not connected!");
+    return;
+  }
+  if (isConnected) {
+    audio.loop();
+  }  
+  if (playlistActive && isConnected && !isPaused && millis() - playlistLastStateCheck >= AUDIO_PLAYLIST_STATE_CHECK_MS) {
+    playlistLastStateCheck = millis();
+
+    bool running = audio.isRunning();
+
+    if (running) {
+      playlistSawRunning = true;
+      playlistStoppedAt = 0;
+    }
+
+    if (playlistSawRunning && !running && millis() - playlistItemStartedAt > 1500) {
+      unsigned long itemAge = millis() - playlistItemStartedAt;
+      unsigned long stopGrace = itemAge < AUDIO_PLAYLIST_EARLY_END_PROTECT_MS
+        ? AUDIO_PLAYLIST_EARLY_END_GRACE_MS
+        : AUDIO_PLAYLIST_END_GRACE_MS;
+
+      if (playlistStoppedAt == 0) {
+        playlistStoppedAt = millis();
+        Serial.println("[audio] playlist item looks stopped, waiting for EOF grace period");
+      } else if (millis() - playlistStoppedAt >= stopGrace) {
+        Serial.println("[audio] playlist item finished by isRunning() fallback");
+        isConnected = false;
+        playNextPlaylistItem();
+      }
+    }
+  
+
+    if (playlistSawRunning && !running && millis() - playlistItemStartedAt > 1500) {
+      unsigned long itemAge = millis() - playlistItemStartedAt;
+      unsigned long stopGrace = itemAge < AUDIO_PLAYLIST_EARLY_END_PROTECT_MS
+        ? AUDIO_PLAYLIST_EARLY_END_GRACE_MS
+        : AUDIO_PLAYLIST_END_GRACE_MS;
+
+      if (playlistStoppedAt == 0) {
+        playlistStoppedAt = millis();
+        Serial.println("[audio] playlist item looks stopped, waiting for EOF grace period");
+      } else if (millis() - playlistStoppedAt >= stopGrace) {
+        Serial.println("[audio] playlist item finished by isRunning() fallback");
+        isConnected = false;
+        playNextPlaylistItem();
+      }
+    }
+  }
+
+  bool running = audio.isRunning();
+
+  if (running) {
+    playlistSawRunning = true;
+    playlistStoppedAt = 0;
+  }
+
+  if (playlistSawRunning && !running && millis() - playlistItemStartedAt > 1500) {
+    unsigned long itemAge = millis() - playlistItemStartedAt;
+    unsigned long stopGrace = itemAge < AUDIO_PLAYLIST_EARLY_END_PROTECT_MS
+      ? AUDIO_PLAYLIST_EARLY_END_GRACE_MS
+      : AUDIO_PLAYLIST_END_GRACE_MS;
+    if (playlistStoppedAt == 0) {
+      playlistStoppedAt = millis();
+      Serial.println("[audio] playlist item looks stopped, waiting for EOF grace period");
+    } else if (millis() - playlistStoppedAt >= stopGrace) {
+      Serial.println("[audio] playlist item finished by isRunning() fallback");
+      isConnected = false;
+      playNextPlaylistItem();
+    }
+    
+  }
+  
+  int packetSize = udp.parsePacket();
+  if (packetSize) {
+    int len = udp.read(incomingPacket, 255);
+    if (len > 0) {
+      incomingPacket[len] = '\0';
+    }
+    Serial.printf("Received UDP packet: '%s' from %s:%d\n", incomingPacket,
+                  udp.remoteIP().toString().c_str(), udp.remotePort());
+    if (strcmp(incomingPacket, "ping") == 0) {
+      const char* host = WiFi.getHostname();
+      String safeHostname = (host != nullptr) ? String(host) : "unknown";
+      String safeName = deviceName.length() > 0 ? deviceName : "ESP32";
+      String mac = WiFi.macAddress();
+      String info = "ESP32-POWERCTRL|MAC=" + mac +
+                    "|NAME=" + locationName +
+                    "|HOSTNAME=" + safeHostname;
+      udp.beginPacket(udp.remoteIP(), udp.remotePort());
+      udp.write((const uint8_t*)info.c_str(), info.length());
+      udp.endPacket();
+      Serial.println("Sent response: " + info);
+    }
+  }
+  unsigned long itemAge = millis() - playlistItemStartedAt;
+  if (!playlistSawRunning && itemAge >= AUDIO_PLAYLIST_START_TIMEOUT_MS) {
+    Serial.println("[audio] playlist item did not start, skipping");
+    isConnected = false;
+    playNextPlaylistItem();
+  }
+  delay(10);
+}
