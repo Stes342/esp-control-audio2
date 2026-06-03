@@ -35,7 +35,10 @@
             Group Control
           </button>
           <button @click="toggleSetAudioInline" :class="{ active: showSetAudioInline }">
-            Set Audio URL (selected)
+            Set Stream URL (selected)
+          </button>
+          <button @click="toggleSetPlaylistInline" :class="{ active: showSetPlaylistInline }">
+            Set Playlist URL(selected)
           </button>
           <button
             v-for="group in deviceGroups"
@@ -56,6 +59,17 @@
           />
           <button @click="sendAudioUrlToSelected" :disabled="!selectedAudioUrl || !selectedDevice">Send</button>
           <button @click="showSetAudioInline = false">Close</button>
+        </div>
+        <div v-if="showSetPlaylistInline" class="submenu inline-audio-panel">
+          <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
+          <input
+            type="text"
+            v-model.trim="selectedPlaylistUrls"
+            placeholder="https://.../001.mp3, https://.../002.mp3"
+            class="inline-audio-input"
+          />
+          <button @click="sendPlaylistToSelected" :disabled="!selectedPlaylistUrls || !selectedDevice">Send</button>
+          <button @click="showSetPlaylistInline = false">Close</button>
         </div>
         <div class="main-content split">
           <div class="left-pane">
@@ -122,7 +136,8 @@
           <button @click="showUserAccessDialog = true" :disabled="checkedDevices.length === 0">User Access on module</button>
           <button @click="toggleCheckAll">{{ isAllChecked ? 'Uncheck All' : 'Check All' }}</button>
           <button @click="showAddDialog = true">Add by IP</button>          
-          <button @click="showGroupsPanel = !showGroupsPanel">Groups</button>
+          <button @click="showGroupsPanel = !showGroupsPanel; showSchedulerPanel = false">Groups</button>
+          <button @click="showSchedulerPanel = !showSchedulerPanel; showGroupsPanel = false">Scheduler</button>
         </div>
 
         <div class="main-content split">
@@ -151,7 +166,12 @@
             </div>
           </div>
           <div class="right-pane">
-            <div v-if="showGroupsPanel">
+            <SchedulerPanel
+              v-if="showSchedulerPanel"
+              :devices="devices"
+              :allGroups="allGroups"
+            />
+            <div v-else-if="showGroupsPanel">
               <div class="group-controls">
                 <button @click="openGroupDialog('new')">New Group</button>
                 <button @click="openGroupDialog('delete')">Delete Group</button>
@@ -293,6 +313,9 @@ import UsersPassCheckedDialog from './components/UsersPassCheckedDialog.vue';
 import UserAccessDialog from './components/UserAccessDialog.vue';
 import GroupDialog from './components/GroupDialog.vue';
 import GroupControlDialog from './components/GroupControlDialog.vue';
+import SchedulerPanel from './components/SchedulerPanel.vue';
+
+const SCHEDULER_FALLBACK_KEY = 'espControlScheduler';
 
 export default {
   components: {
@@ -303,7 +326,8 @@ export default {
     SetAdminAuthDialog,
     UserAccessDialog,
     GroupDialog,
-    GroupControlDialog,    
+    GroupControlDialog,
+    SchedulerPanel,    
   },
   data() {
     return {
@@ -324,6 +348,7 @@ export default {
       usersPassCheckedDevices: [],
       showUserAccessDialog: false,
       showGroupsPanel: false,
+      showSchedulerPanel: false,
       showGroupDialog: false,
       groupAction: '', // 'new' | 'delete' | 'assign' | 'remove'
       availableGroups: [], // берём из storageAPI при загрузке 
@@ -335,6 +360,11 @@ export default {
       includeCredentials: true,
       showSetAudioInline: false,
       selectedAudioUrl: '',
+      showSetPlaylistInline: false,
+      selectedPlaylistUrls: '',
+      schedulerInterval: null,
+      schedulerCheckRunning: false,
+      executedScheduledEvents: new Set(),
     }
   },
   computed: {
@@ -440,6 +470,193 @@ export default {
 
       await check();
       this.checkInterval = setInterval(check, intervalMs);
+    },
+
+    startSchedulerRunner() {
+      const intervalMs = 10000;
+      const check = () => this.runDueSchedulerEvents();
+
+      check();
+      this.schedulerInterval = setInterval(check, intervalMs);
+    },
+
+    getSchedulerNow() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+
+      return {
+        date: `${year}-${month}-${day}`,
+        time: `${hours}:${minutes}`
+      };
+    },
+
+    getScheduledTargetDevices(dayScheduler) {
+      if (dayScheduler.targetType === 'device') {
+        return this.devices.filter(device => device.ip === dayScheduler.targetDeviceIp && device.available);
+      }
+
+      const targetGroups = Array.isArray(dayScheduler.targetGroups) ? dayScheduler.targetGroups : [];
+      return this.devices.filter((device) => {
+        if (!device.available) return false;
+        if (targetGroups.includes('All')) return true;
+        if (targetGroups.includes('NoGroup') && !device.group) return true;
+        return targetGroups.includes(device.group);
+      });
+    },
+
+    normalizeScheduler(scheduler) {
+      return {
+        audioUrls: Array.isArray(scheduler?.audioUrls) ? scheduler.audioUrls : [],
+        playlists: Array.isArray(scheduler?.playlists) ? scheduler.playlists : [],
+        events: Array.isArray(scheduler?.events) ? scheduler.events : [],
+        daySchedulers: Array.isArray(scheduler?.daySchedulers) ? scheduler.daySchedulers : [],
+        calendarAssignments: Array.isArray(scheduler?.calendarAssignments) ? scheduler.calendarAssignments : []
+      };
+    },
+
+    schedulerHasData(scheduler) {
+      return Boolean(
+        scheduler?.audioUrls?.length ||
+        scheduler?.playlists?.length ||
+        scheduler?.daySchedulers?.length ||
+        scheduler?.calendarAssignments?.length
+      );
+    },
+
+    loadSchedulerBackup() {
+      try {
+        const rawScheduler = window.localStorage.getItem(SCHEDULER_FALLBACK_KEY);
+        return rawScheduler ? JSON.parse(rawScheduler) : null;
+      } catch (error) {
+        console.error('Failed to load scheduler backup for runner:', error);
+        return null;
+      }
+    },
+
+    async loadSchedulerForRunner() {
+      let scheduler = null;
+
+      try {
+        scheduler = await window.storageAPI.loadScheduler?.();
+      } catch (error) {
+        console.error('Failed to load scheduler events:', error);
+      }
+
+      const normalizedScheduler = this.normalizeScheduler(scheduler);
+      const backupScheduler = this.normalizeScheduler(this.loadSchedulerBackup());
+
+      if (normalizedScheduler.calendarAssignments.length > 0 || normalizedScheduler.daySchedulers.length > 0) return normalizedScheduler;
+      if (backupScheduler.calendarAssignments.length > 0 || backupScheduler.daySchedulers.length > 0) return backupScheduler;
+      if (this.schedulerHasData(normalizedScheduler)) return normalizedScheduler;
+      if (this.schedulerHasData(backupScheduler)) return backupScheduler;
+
+      return normalizedScheduler;
+    },
+
+    async runDueSchedulerEvents() {
+      if (this.schedulerCheckRunning) return;
+      this.schedulerCheckRunning = true;
+
+      try {
+        const scheduler = await this.loadSchedulerForRunner();
+        const { date, time } = this.getSchedulerNow();
+        const assignment = scheduler.calendarAssignments.find(item => item.date === date);
+        if (!assignment || !Array.isArray(assignment.schedulerIds)) return;
+
+        for (const daySchedulerId of assignment.schedulerIds) {
+          const dayScheduler = scheduler.daySchedulers.find(item => item.id === daySchedulerId);
+          if (!dayScheduler || !Array.isArray(dayScheduler.events)) continue;
+
+          const dueEvents = dayScheduler.events.filter(event => event.time === time);
+          for (const event of dueEvents) {
+            const executionKey = `${dayScheduler.id}:${event.id}:${date}:${time}`;
+            if (this.executedScheduledEvents.has(executionKey)) continue;
+
+            const didAttempt = await this.executeScheduledEvent(event, dayScheduler, scheduler);
+            if (didAttempt) {
+              this.executedScheduledEvents.add(executionKey);
+            }
+          }
+        }
+      } finally {
+        this.schedulerCheckRunning = false;
+      }
+    },
+
+    async executeScheduledEvent(event, dayScheduler, scheduler) {
+      const targetDevices = this.getScheduledTargetDevices(dayScheduler);
+      if (targetDevices.length === 0) return false;
+
+      for (const device of targetDevices) {
+        await this.sendScheduledAction(device, event, scheduler);
+      }
+
+      return true;
+    },
+
+    async sendScheduledAction(device, event, scheduler) {
+      try {
+        if (event.action === 'setAudioUrl') {
+          const preset = scheduler.audioUrls?.find(item => item.id === event.audioUrlId);
+          if (!preset?.url) return;
+
+          await this.sendScheduledAudioUrl(device, preset.url);
+          return;
+        }
+
+        if (event.action === 'playlist') {
+          const playlist = scheduler.playlists?.find(item => item.id === event.playlistId);
+          if (!playlist?.urls?.length) return;
+
+          await this.sendScheduledPlaylist(device, playlist);
+          return;
+        }
+
+        if (event.action === 'play' || event.action === 'pause') {
+          await this.sendScheduledAudioCommand(device, event.action);
+        }
+      } catch (error) {
+        console.warn(`Scheduled ${event.action} failed on ${device.ip}:`, error);
+      }
+    },
+
+    async sendScheduledAudioUrl(device, url) {
+      const encodedUrl = encodeURIComponent(url);
+      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/seturl?url=${encodedUrl}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+    },
+
+    async sendScheduledPlaylist(device, playlist) {
+      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/playlist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          urls: playlist.urls,
+          returnToPrevious: playlist.returnToPrevious !== false,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+    },
+
+    async sendScheduledAudioCommand(device, command) {
+      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/${command}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
     },
 
     async removeDevice(device) {
@@ -603,6 +820,17 @@ export default {
       }
     },
 
+    toggleSetPlaylistInline() {
+      if (!this.selectedDevice) {
+        alert('Select a module first in Control tab.');
+        return;
+      }
+      this.showSetPlaylistInline = !this.showSetPlaylistInline;
+      if (this.showSetPlaylistInline && !this.selectedPlaylistUrls) {
+        this.selectedPlaylistUrls = '';
+      }
+    },
+
     async sendAudioUrlToSelected() {
       if (!this.selectedDevice || !this.selectedAudioUrl) return;
 
@@ -618,6 +846,39 @@ export default {
       } catch (err) {
         console.error('Failed to set audio URL for selected module:', err);
         alert(`❌ Failed to send audio URL: ${err.message}`);
+      }
+    },
+
+    async sendPlaylistToSelected() {
+      if (!this.selectedDevice || !this.selectedPlaylistUrls) return;
+
+      const urls = this.selectedPlaylistUrls
+        .split(',')
+        .map(url => url.trim())
+        .filter(Boolean);
+
+      if (urls.length === 0) return;
+
+      try {
+        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/audio/playlist`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            urls,
+            returnToPrevious: true,
+          }),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`HTTP ${response.status}: ${text}`);
+        }
+        alert(`✅ Playlist sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
+        this.showSetPlaylistInline = false;
+      } catch (err) {
+        console.error('Failed to send playlist to selected module:', err);
+        alert(`❌ Failed to send playlist: ${err.message}`);
       }
     },
 
@@ -710,13 +971,14 @@ export default {
     },
 
   },
-  mounted() {
-    this.loadDevices()
-    this.startAvailabilityCheck()
-    this.loadGroups();
+  async mounted() {
+    await this.loadDevices()
+    await this.startAvailabilityCheck()
+    this.startSchedulerRunner()
   },
   beforeUnmount() {
     if (this.checkInterval) clearInterval(this.checkInterval)
+    if (this.schedulerInterval) clearInterval(this.schedulerInterval)
   }
 }
 </script>

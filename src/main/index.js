@@ -30,6 +30,10 @@ ipcMain.handle('saveGroups', (_, groups) => {
   console.log('[IPC] saveGroups called:', groups);
   return storage.saveGroups(groups);
 });
+ipcMain.handle('loadScheduler', () => storage.loadScheduler());
+ipcMain.handle('saveScheduler', (_, scheduler) => {
+  return storage.saveScheduler(scheduler);
+});
 
 
 

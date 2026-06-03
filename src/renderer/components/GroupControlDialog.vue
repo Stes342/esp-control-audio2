@@ -8,7 +8,13 @@
 
       <div>
         <label>Audio stream URL:
-          <input type="text" v-model.trim="audioUrl" placeholder="https://..." />
+          <input type="text" v-model.trim="audioUrl" placeholder="http://..." />
+        </label>
+        </div>
+
+      <div>
+        <label>Playlist URLs:
+          <input type="text" v-model.trim="playlistUrls" placeholder="http://.../001.mp3, http://.../002.mp3" />
         </label>
       </div>     
       
@@ -23,6 +29,7 @@
       <!-- Управление -->
       <div class="actions">
         <button @click="setAudioUrlForGroups" :disabled="!audioUrl">Set Audio URL</button>
+        <button @click="sendPlaylistForGroups" :disabled="!playlistUrls">Send Playlist</button>
         <button @click="sendAudioCommandForGroups('play')" :disabled="selectedGroups.length === 0">Play</button>
         <button @click="sendAudioCommandForGroups('pause')" :disabled="selectedGroups.length === 0">Pause</button>                
         <button @click="$emit('close')">Close</button>
@@ -39,6 +46,7 @@ export default {
     return {
       selectedGroups: [],      
       audioUrl: '',
+      playlistUrls: '',
     };
   },
   computed: {
@@ -79,6 +87,36 @@ export default {
           }
         } catch (err) {
           console.warn(`Audio URL failed on ${device.ip}`, err);
+        }
+      }
+    },
+    async sendPlaylistForGroups() {
+      const urls = this.playlistUrls
+        .split(',')
+        .map(url => url.trim())
+        .filter(Boolean);
+
+      if (urls.length === 0) return;
+
+      for (const device of this.getTargetDevices()) {
+        if (!device.available) continue;
+        try {
+          const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/playlist`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              urls,
+              returnToPrevious: true,
+            }),
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            console.warn(`Playlist failed on ${device.ip}: ${response.status} ${text}`);
+          }
+        } catch (err) {
+          console.warn(`Playlist failed on ${device.ip}`, err);
         }
       }
     },
@@ -142,6 +180,7 @@ button {
 }
 label {
   display: block;
+  width: 200px;
   margin-bottom: 10px;
 }
 h5 {

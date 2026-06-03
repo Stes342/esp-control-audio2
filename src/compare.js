@@ -1,17 +1,19 @@
-const fs = require('fs');
-const path = require('path');
 
-
-const electron = require('electron');
-const app = electron.app || electron.remote.app;
-const dbPath = path.join(app.getPath('userData'), 'modules.json');
-
+ const fs = require('fs');
+ const path = require('path');
+ 
+ 
+ 
+ const electron = require('electron');
+ const app = electron.app || electron.remote.app;
+ const dbPath = path.join(app.getPath('userData'), 'modules.json');
+ 
 function createEmptyScheduler() {
   return {
     audioUrls: [],
     playlists: [],
     events: [],
-  daySchedulers: [],
+    daySchedulers: [],
     calendarAssignments: []
   };
 }
@@ -30,7 +32,7 @@ function normalizeDB(db) {
       ...createEmptyDB(),
       modules: db
     };
-  }
+   }
 
   if (!db || typeof db !== 'object') {
     return createEmptyDB();
@@ -54,48 +56,48 @@ function normalizeDB(db) {
 
 function loadModules() {
   return loadDB().modules;
-}
-
-function saveModules(modules) {
-  const db = loadDB();
+ }
+ 
+ function saveModules(modules) {
+   const db = loadDB();
   db.modules = Array.isArray(modules) ? modules : [];
-  saveDB(db);
+   saveDB(db);
   return db.modules;
-}
-
-function upsertModule(module) {
-  const modules = loadModules();
-  const index = modules.findIndex(m => m.mac === module.mac);
-
-  if (index !== -1) {
-    modules[index] = { ...modules[index], ...module };
-  } else {
-    modules.push(module);
-  }
+ }
+ 
+ function upsertModule(module) {
+   const modules = loadModules();
+   const index = modules.findIndex(m => m.mac === module.mac);
+ 
+   if (index !== -1) {
+     modules[index] = { ...modules[index], ...module };
+   } else {
+     modules.push(module);
+   }
   return saveModules(modules);
-}
-
-function deleteModule(mac) {
-  const db = loadDB();
-  db.modules = db.modules.filter(m => m.mac !== mac);
-  saveDB(db);
+ }
+ 
+ function deleteModule(mac) {
+   const db = loadDB();
+   db.modules = db.modules.filter(m => m.mac !== mac);
+   saveDB(db);
   return db.modules;
-}
-
-function removeModule(mac) {
+ }
+ 
+ function removeModule(mac) {
   return deleteModule(mac);
-}
-
-// ===== 🔥 Добавляем поддержку групп! =====
-
-function loadGroups() {
+ }
+ 
+ // ===== 🔥 Добавляем поддержку групп! =====
+ 
+ function loadGroups() {
   return loadDB().groups;
-}
-
-function saveGroups(groups) {
-  const db = loadDB();
+ }
+ 
+ function saveGroups(groups) {
+   const db = loadDB();
   db.groups = Array.isArray(groups) ? groups : [];
-  saveDB(db);
+   saveDB(db);
   return db.groups;
 }
 
@@ -110,34 +112,34 @@ function saveScheduler(scheduler) {
   db.scheduler = normalizeDB({ scheduler }).scheduler;
   saveDB(db);
   return db.scheduler;
-}
-
-// ===== 🗃️ Общие утилиты =====
-
-function loadDB() {
-  try {
+ }
+ 
+ // ===== 🗃️ Общие утилиты =====
+ 
+ function loadDB() {
+   try {
     return normalizeDB(JSON.parse(fs.readFileSync(dbPath, 'utf-8')));
-  } catch {
+   } catch {
     return createEmptyDB();
-  }
-}
-
-function saveDB(db) {
+   }
+ }
+ 
+ function saveDB(db) {
   const normalizedDB = normalizeDB(db);
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   fs.writeFileSync(dbPath, JSON.stringify(normalizedDB, null, 2), 'utf-8');
-}
-
-// ===== ✅ Экспорт =====
-
-module.exports = {
-  loadModules,
-  saveModules,
-  upsertModule,
-  deleteModule,
-  removeModule,
-  loadGroups,
+ }
+ 
+ // ===== ✅ Экспорт =====
+ 
+ module.exports = {
+   loadModules,
+   saveModules,
+   upsertModule,
+   deleteModule,
+   removeModule,
+   loadGroups,
   saveGroups,
   loadScheduler,
   saveScheduler
-};
+ };
