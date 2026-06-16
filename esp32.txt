@@ -1,3 +1,4 @@
+//16.06.2026
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
@@ -778,12 +779,14 @@ const char settings_html[] PROGMEM = R"rawliteral(
       <div class="user-block">
         <h4 style="margin-bottom: 5px;">user1</h4>
         <input type="password" name="user1_pass" placeholder="Password for user1" style="padding-top: 1px; margin: 1px;"><br>
+        <!--
         <label><input type="checkbox" name="user1_r1"> Relay1</label>
         <label><input type="checkbox" name="user1_r2"> Relay2</label>
         <label><input type="checkbox" name="user1_r3"> Relay3</label>
         <label><input type="checkbox" name="user1_r4"> Relay4</label>
+         -->
       </div>
-      <!-- Аналогичные блоки для User2, User3, User4 -->
+      <!-- Аналогичные блоки для User2, User3, User4 
       <div class="user-block">
         <h4 style="margin-bottom: 5px;">user2</h4>
         <input type="password" name="user2_pass" placeholder="Password for user2" style="padding-top: 1px; margin: 1px;"><br>
@@ -807,7 +810,8 @@ const char settings_html[] PROGMEM = R"rawliteral(
         <label><input type="checkbox" name="user4_r2"> Relay2</label>
         <label><input type="checkbox" name="user4_r3"> Relay3</label>
         <label><input type="checkbox" name="user4_r4"> Relay4</label>
-      </div>
+      </div> 
+      -->
       <button type="submit">Save Access Settings</button>
     </form>
   </div>
@@ -1080,7 +1084,7 @@ String audioPlayerHtml() {
   html += "<div><strong>Зараз грає:</strong> ";
   html += endpointNameFromUrl(currentStreamUrl);
   html += "</div><br>";
-  html += "<label>Громкость: <span id='volumeValue'>" + String(currentVolume) + "</span>/21</label>";
+  html += "<label>Гучність: <span id='volumeValue'>" + String(currentVolume) + "</span>/21</label>";
   html += "<input type='range' min='0' max='21' value='" + String(currentVolume) + "' oninput='updateVolume(this.value)' style='width:100%; margin-top:10px;'>";
   html += "<button type='button' class='button' id='pauseBtn' style='display:block; width:100%; margin-top:10px;' onclick='togglePause()'>";
   html += (isPaused ? "▶ Play" : "⏸ Pause");
@@ -1230,18 +1234,33 @@ void setup() {
 
   // Зарегистрируем обработчики
   server.on("/status", []() {
-    String json = "[";
-    for (int i = 0; i < RELAY_COUNT; i++) {
-      json += "{";
-      json += "\"id\":" + String(i) + ",";
-      json += "\"state\":" + String(relayStates[i]) + ",";
-      json += "\"useTimer\":" + String(useTimer[i]) + ",";
-      json += "\"seconds\":" + String(timerSeconds[i]) + ",";
-      json += "\"name\":\"" + relayNames[i] + "\"";
-      json += "}";
-      if (i < RELAY_COUNT - 1) json += ",";
+     DynamicJsonDocument doc(2048);
+
+    JsonArray relays = doc.createNestedArray("relays");
+    for (int i = 0; i < RELAY_COUNT; i++) {      
+      JsonObject relay = relays.createNestedObject();
+      relay["id"] = i;
+      relay["state"] = relayStates[i];
+      relay["useTimer"] = useTimer[i];
+      relay["seconds"] = timerSeconds[i];
+      relay["name"] = relayNames[i];
     }
-    json += "]";
+
+    JsonObject wifi = doc.createNestedObject("wifi");
+    wifi["rssi"] = WiFi.RSSI();
+
+    JsonObject audioStatus = doc.createNestedObject("audio");
+    audioStatus["state"] = (!isPaused && isConnected) ? "play" : "pause";
+    audioStatus["current"] = endpointNameFromUrl(currentStreamUrl);
+    audioStatus["url"] = currentStreamUrl;
+    audioStatus["volume"] = currentVolume;
+    audioStatus["playlistActive"] = playlistActive;
+    if (playlistActive) {
+      audioStatus["playlistIndex"] = playlistIndex;
+      audioStatus["playlistCount"] = playlistCount;
+    }
+    String json;
+    serializeJson(doc, json);
     server.send(200, "application/json", json);
   });
   

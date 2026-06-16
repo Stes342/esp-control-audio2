@@ -97,7 +97,12 @@
                   <strong>Login:</strong> {{ device.login || '—' }}
                   <span v-if="device.group">
                     &nbsp; | &nbsp; <strong>Group:</strong> {{ device.group }}
-                  </span>
+                  </span>                  
+                  &nbsp; | &nbsp; <strong>WiFi:</strong> {{ wifiSignalLabel(device) }}
+                  &nbsp; | &nbsp; <strong>Audio:</strong> {{ playbackStateLabel(device) }}
+                  <br>
+                  <strong>Now playing:</strong> {{ nowPlayingLabel(device) }}
+                  <br>                  
                 </p>
               </div>
             </div>
@@ -133,10 +138,10 @@
           <button @click="removeChecked" :disabled="checkedDevices.length === 0">Delete</button>
           <button @click="openSetAuthForChecked" :disabled="checkedDevices.length === 0">Log\Pass (Admin) on module</button>
           <button @click="openSetUsersForChecked" :disabled="checkedDevices.length === 0">Log\Pass (Users) on module</button>
-          <button @click="showUserAccessDialog = true" :disabled="checkedDevices.length === 0">User Access on module</button>
+          <!-- <button @click="showUserAccessDialog = true" :disabled="checkedDevices.length === 0">User Access on module</button> -->
           <button @click="toggleCheckAll">{{ isAllChecked ? 'Uncheck All' : 'Check All' }}</button>
           <button @click="showAddDialog = true">Add by IP</button>          
-          <button @click="showGroupsPanel = !showGroupsPanel; showSchedulerPanel = false">Groups</button>
+          <button @click="toggleGroupsPanel">Groups</button>
           <button @click="showSchedulerPanel = !showSchedulerPanel; showGroupsPanel = false">Scheduler</button>
         </div>
 
@@ -147,7 +152,7 @@
             </div>
             <div v-else class="device-list">
               <div
-                v-for="device in filteredDevices"
+                v-for="device in filteredManageDevices"
                 :key="device.mac"
                 class="device-card"
               >
@@ -383,11 +388,7 @@ export default {
           if (this.selectedGroup === 'NoGroup') return !device.group;
           return device.group === this.selectedGroup;
         })
-        .filter(device =>
-          device.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-          device.ip.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-          device.mac.toLowerCase().includes(this.searchQuery.toLowerCase())
-        );
+        .filter(device => this.deviceMatchesSearch(device));
     },
     webviewUrl() {
       if (!this.selectedDevice) return ''
@@ -405,11 +406,7 @@ export default {
           if (this.selectedGroup === 'NoGroup') return !device.group;
           return device.group === this.selectedGroup;
         })
-        .filter(device =>
-          device.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-          device.ip.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-          device.mac.toLowerCase().includes(this.searchQuery.toLowerCase())
-        );
+        .filter(device => this.deviceMatchesSearch(device));
     },
     selectedDevices() {
       // Возвращает объекты устройств, которые выбраны
@@ -442,6 +439,119 @@ export default {
       }
     },
 
+    deviceMatchesSearch(device) {
+      const query = this.searchQuery.trim().toLowerCase();
+      if (!query) return true;
+
+      return [
+        device.name,
+        device.ip,
+        device.mac,
+        this.wifiSignalLabel(device),
+        this.playbackStateLabel(device),
+        this.nowPlayingLabel(device),
+        device.wifiRssi,
+        device.audioPlaybackState,
+        device.audioNowPlaying
+      ]
+        .filter(value => value !== null && value !== undefined)
+        .some(value => String(value).toLowerCase().includes(query));
+    },
+
+    async readModuleStatus(response) {
+      const text = await response.text();
+      if (!text) return null;
+
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        console.warn('Failed to parse module status:', error);
+        return null;
+      }
+    },
+
+    applyModuleStatus(device, status) {
+      if (!status || Array.isArray(status)) {
+        device.wifiRssi = null;
+        device.audioPlaybackState = '';
+        device.audioNowPlaying = '';
+        return;
+      }
+
+      const audio = status.audio || status.playback || {};
+      const wifi = status.wifi || {};
+      device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
+      device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
+      device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
+    },
+
+    wifiSignalLabel(device) {
+      if (!device.available) return 'Offline';
+      if (device.wifiRssi === null || device.wifiRssi === undefined || device.wifiRssi === '') return '—';
+      return `${device.wifiRssi} dBm`;
+    },
+
+    playbackStateLabel(device) {
+      if (!device.available) return 'Offline';
+      const state = String(device.audioPlaybackState || '').toLowerCase();
+      if (state === 'play' || state === 'playing') return 'Play';
+      if (state === 'pause' || state === 'paused') return 'Pause';
+      if (state === 'stopped' || state === 'stop') return 'Stopped';
+      return '—';
+    },
+
+    nowPlayingLabel(device) {
+      if (!device.available) return 'Offline';
+      return device.audioNowPlaying || '—';
+    },
+
+    async readModuleStatus(response) {
+      const text = await response.text();
+      if (!text) return null;
+
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        console.warn('Failed to parse module status:', error);
+        return null;
+      }
+    },
+
+    applyModuleStatus(device, status) {
+      if (!status || Array.isArray(status)) {
+        device.wifiRssi = null;
+        device.audioPlaybackState = '';
+        device.audioNowPlaying = '';
+        return;
+      }
+
+      const audio = status.audio || status.playback || {};
+      const wifi = status.wifi || {};
+      device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
+      device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
+      device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
+    },
+
+    wifiSignalLabel(device) {
+      if (!device.available) return 'Offline';
+      if (device.wifiRssi === null || device.wifiRssi === undefined || device.wifiRssi === '') return '—';
+      return `${device.wifiRssi} dBm`;
+    },
+
+    playbackStateLabel(device) {
+      if (!device.available) return 'Offline';
+      const state = String(device.audioPlaybackState || '').toLowerCase();
+      if (state === 'play' || state === 'playing') return 'Play';
+      if (state === 'pause' || state === 'paused') return 'Pause';
+      if (state === 'stopped' || state === 'stop') return 'Stopped';
+      return '—';
+    },
+
+    nowPlayingLabel(device) {
+      if (!device.available) return 'Offline';
+      return device.audioNowPlaying || '—';
+    },
+
     async startAvailabilityCheck() {
       const intervalMs = 10000;
 
@@ -453,10 +563,19 @@ export default {
           const res = await fetch(`http://localhost:3000/proxy/${device.ip}/status`, {
             signal: controller.signal
           });
-          clearTimeout(timeout);
-          return res.ok;
+          if (!res.ok) {
+            this.applyModuleStatus(device, null);
+            return false;
+          }
+
+          const moduleStatus = await this.readModuleStatus(res);
+          this.applyModuleStatus(device, moduleStatus);
+          return true;
         } catch {
+          this.applyModuleStatus(device, null);
           return false;
+          } finally {
+          clearTimeout(timeout);
         }
       };
 
@@ -793,8 +912,22 @@ export default {
       }
     },
     async loadGroups() {
-      this.availableGroups = await window.storageAPI.getGroups();
-      console.log('[loadGroups] Loaded:', JSON.parse(JSON.stringify(this.availableGroups)));
+      try {
+        const storedGroups = await window.storageAPI.getGroups?.();
+        const groups = Array.isArray(storedGroups) ? storedGroups : [];
+        this.availableGroups = Array.from(new Set([...groups, ...this.allGroups])).sort();
+        console.log('[loadGroups] Loaded:', JSON.parse(JSON.stringify(this.availableGroups)));
+      } catch (error) {
+        console.error('Failed to load groups:', error);
+        this.availableGroups = Array.from(new Set(this.allGroups)).sort();
+      }
+    },
+    async toggleGroupsPanel() {
+      this.showGroupsPanel = !this.showGroupsPanel;
+      this.showSchedulerPanel = false;
+      if (this.showGroupsPanel) {
+        await this.loadGroups();
+      }
     },
     async handleAddDeviceClose(reload = false) {
       this.showAddDialog = false
@@ -973,6 +1106,7 @@ export default {
   },
   async mounted() {
     await this.loadDevices()
+    await this.loadGroups()
     await this.startAvailabilityCheck()
     this.startSchedulerRunner()
   },

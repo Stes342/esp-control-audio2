@@ -2,8 +2,10 @@
   <div class="scheduler-panel">
     <h3>Scheduler</h3>
 
-    <div class="scheduler-section">
-      <h4>Audio stream URLs</h4>
+    <details class="scheduler-section scheduler-collapsible-section">
+      <summary class="scheduler-section-summary">
+        <h4>Audio stream URLs</h4>
+      </summary>
       <div class="scheduler-form-row">
         <input type="text" v-model.trim="newAudioUrl.name" placeholder="Name" />
         <input type="text" v-model.trim="newAudioUrl.url" placeholder="https://..." />
@@ -14,10 +16,12 @@
         <span><strong>{{ preset.name }}</strong> — {{ preset.url }}</span>
         <button @click="deleteAudioUrlPreset(preset.id)">Delete</button>
       </div>
-    </div>
+    </details>
 
-    <div class="scheduler-section">
-      <h4>Playlist URLs</h4>
+    <details class="scheduler-section scheduler-collapsible-section">
+      <summary class="scheduler-section-summary">
+        <h4>Playlist URLs</h4>
+      </summary>
       <div class="scheduler-form-row">
         <input type="text" v-model.trim="newPlaylist.name" placeholder="Name" />
         <textarea v-model.trim="newPlaylist.urls" placeholder="https://.../001.mp3, https://.../002.mp3"></textarea>
@@ -36,10 +40,12 @@
         </div>
         <button @click="deletePlaylistPreset(playlist.id)">Delete</button>
       </div>
-    </div>
+    </details>
 
-    <div class="scheduler-section">
-      <h4>Schedulers</h4>
+    <details class="scheduler-section scheduler-collapsible-section">
+      <summary class="scheduler-section-summary">
+        <h4>Schedulers</h4>
+      </summary>
       <div class="scheduler-form-row">
         <input type="text" v-model.trim="newDaySchedulerName" placeholder="Scheduler name" />
         <button @click="addDayScheduler" :disabled="!newDaySchedulerName">Add scheduler</button>
@@ -73,7 +79,11 @@
 
         <div v-if="selectedDayScheduler.targetType === 'groups'" class="scheduler-checkboxes">
           <label v-for="group in groupOptions" :key="group.value">
-            <input type="checkbox" :value="group.value" v-model="selectedDayScheduler.targetGroups" @change="saveScheduler" />
+            <input
+              type="checkbox"
+              :checked="isTargetGroupSelected(group.value)"
+              @change="handleTargetGroupChange(group.value, $event.target.checked)"
+            />
             {{ group.label }}
           </label>
         </div>
@@ -125,10 +135,12 @@
           </tbody>
         </table>
       </div>
-    </div>
+    </details>
 
-    <div class="scheduler-section">
-      <h4>Calendar</h4>
+    <details class="scheduler-section scheduler-collapsible-section">
+      <summary class="scheduler-section-summary">
+        <h4>Calendar</h4>
+      </summary>
       <div class="scheduler-form-row">
         <button @click="changeCalendarMonth(-1)">‹</button>
         <input type="month" v-model="calendarMonth" />
@@ -158,7 +170,7 @@
           </span>
         </button>
       </div>
-    </div>
+    </details>
 
     <div v-if="selectedCalendarDate" class="scheduler-section">
       <h4>Day assignments: {{ selectedCalendarDate }}</h4>
@@ -193,8 +205,10 @@
       </div>
     </div>
 
-    <div class="scheduler-section">
-      <h4>Copy month</h4>
+    <details class="scheduler-section scheduler-collapsible-section">
+      <summary class="scheduler-section-summary">
+        <h4>Copy month</h4>
+      </summary>
       <div class="scheduler-empty">Copy current month to selected next months. Existing assignments in target months are replaced.</div>
       <div class="scheduler-copy-days">
         <label v-for="month in copyMonthOptions" :key="month.value">
@@ -203,7 +217,7 @@
         </label>
       </div>
       <button @click="copyCurrentMonthToMonths" :disabled="copyTargetMonths.length === 0">Copy month to checked months</button>
-    </div>
+    </details>
   </div>
 </template>
 
@@ -343,6 +357,14 @@ export default {
     createId(prefix) {
       return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     },
+    normalizeTargetGroups(targetGroups) {
+      if (!Array.isArray(targetGroups)) return [];
+      const uniqueGroups = Array.from(new Set(targetGroups.filter(Boolean)));
+      if (uniqueGroups.includes('All') && uniqueGroups.length > 1) {
+        return uniqueGroups.filter(group => group !== 'All');
+      }
+      return uniqueGroups;
+    },
     normalizeScheduler(scheduler) {
       return {
         audioUrls: Array.isArray(scheduler?.audioUrls) ? scheduler.audioUrls : [],
@@ -354,7 +376,7 @@ export default {
               name: item.name || 'Scheduler',
               color: item.color || this.nextSchedulerColor(),
               targetType: item.targetType === 'device' ? 'device' : 'groups',
-              targetGroups: Array.isArray(item.targetGroups) ? item.targetGroups : [],
+              targetGroups: this.normalizeTargetGroups(item.targetGroups),
               targetDeviceIp: item.targetDeviceIp || '',
               events: Array.isArray(item.events) ? item.events : []
             }))
@@ -418,6 +440,11 @@ export default {
       }
     },
     async saveScheduler() {
+      this.scheduler.daySchedulers.forEach((dayScheduler) => {
+        if (dayScheduler.targetType === 'groups') {
+          dayScheduler.targetGroups = this.normalizeTargetGroups(dayScheduler.targetGroups);
+        }
+      });
       const scheduler = JSON.parse(JSON.stringify(this.scheduler));
       try {
         if (!window.storageAPI?.saveScheduler) {
@@ -436,9 +463,34 @@ export default {
     },
     ensureSelectedSchedulerDefaults() {
       if (!this.selectedDayScheduler) return;
-      if (!Array.isArray(this.selectedDayScheduler.targetGroups)) this.selectedDayScheduler.targetGroups = [];
+      this.selectedDayScheduler.targetGroups = this.normalizeTargetGroups(this.selectedDayScheduler.targetGroups);
       if (!Array.isArray(this.selectedDayScheduler.events)) this.selectedDayScheduler.events = [];
       if (!this.selectedDayScheduler.color) this.selectedDayScheduler.color = this.nextSchedulerColor();
+    },
+
+    isTargetGroupSelected(group) {
+      return this.schedulerTargetGroups(this.selectedDayScheduler).includes(group);
+    },
+    async handleTargetGroupChange(changedGroup, checked) {
+      if (!this.selectedDayScheduler) return;
+
+      if (changedGroup === 'All') {
+        this.selectedDayScheduler.targetGroups = checked ? ['All'] : [];
+        await this.saveScheduler();
+        return;
+      }
+
+      const targetGroups = this.schedulerTargetGroups(this.selectedDayScheduler).filter(group => group !== 'All');
+      if (checked && !targetGroups.includes(changedGroup)) {
+        targetGroups.push(changedGroup);
+      }
+      if (!checked) {
+        this.selectedDayScheduler.targetGroups = targetGroups.filter(group => group !== changedGroup);
+      } else {
+        this.selectedDayScheduler.targetGroups = targetGroups;
+      }
+
+      await this.saveScheduler();
     },
     async addAudioUrlPreset() {
       this.scheduler.audioUrls.push({
@@ -607,23 +659,32 @@ export default {
       }
       return '';
     },
-    schedulerHasAllTarget(dayScheduler) {
-      return dayScheduler.targetType === 'groups' && dayScheduler.targetGroups.includes('All');
+    schedulerTargetGroups(dayScheduler) {
+      return dayScheduler.targetType === 'groups' ? this.normalizeTargetGroups(dayScheduler.targetGroups) : [];
     },
-    schedulersConflict(first, second) {
-      if (this.schedulerHasAllTarget(first) || this.schedulerHasAllTarget(second)) return true;
+    schedulerHasAllTarget(dayScheduler) {
+      return this.schedulerTargetGroups(dayScheduler).includes('All');
+    },
+    schedulerGroupsConflict(first, second) {
+      const firstGroups = this.schedulerTargetGroups(first);
+      const secondGroups = this.schedulerTargetGroups(second);
+      if (firstGroups.includes('All') || secondGroups.includes('All')) return true;
+      return firstGroups.some(group => secondGroups.includes(group));
+    },
+    schedulersConflict(first, second) {      
       if (first.targetType === 'device' && second.targetType === 'device') {
         return Boolean(first.targetDeviceIp && first.targetDeviceIp === second.targetDeviceIp);
       }
       if (first.targetType === 'groups' && second.targetType === 'groups') {
-        return first.targetGroups.some(group => second.targetGroups.includes(group));
+        return this.schedulerGroupsConflict(first, second);
       }
       const groupScheduler = first.targetType === 'groups' ? first : second;
       const deviceScheduler = first.targetType === 'device' ? first : second;
       const device = this.devices.find(item => item.ip === deviceScheduler.targetDeviceIp);
-      if (!device) return false;
-      if (groupScheduler.targetGroups.includes('NoGroup') && !device.group) return true;
-      return groupScheduler.targetGroups.includes(device.group);
+      const targetGroups = this.schedulerTargetGroups(groupScheduler);
+      if (!device || targetGroups.includes('All')) return targetGroups.includes('All');
+      if (targetGroups.includes('NoGroup') && !device.group) return true;
+      return targetGroups.includes(device.group);
     },
     async copySelectedDayToDates() {
       if (!this.selectedCalendarDate || this.copyTargetDates.length === 0) return;
@@ -711,6 +772,19 @@ export default {
   margin-bottom: 10px;
   background: #fff;
 }
+
+.scheduler-collapsible-section {
+  padding-top: 6px;
+}
+
+.scheduler-section-summary {
+  cursor: pointer;
+}
+
+.scheduler-section-summary h4 {
+  display: inline;
+}
+
 
 .scheduler-editor {
   border-top: 1px solid #eee;
