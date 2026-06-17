@@ -1,4 +1,4 @@
-//16.06.2026
+//17.06.2026
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
@@ -530,6 +530,23 @@ void handleAudioToggle() {
 
   Serial.println("[audio] toggle after: isConnected=" + String(isConnected) + ", isPaused=" + String(isPaused));
   server.send(200, "text/plain", "PAUSED");
+}
+
+void handleAudioReboot() {
+  Serial.println("[audio] /audio/reboot requested");
+  String currentUser;
+  if (!checkAuth(currentUser)) {
+    Serial.println("[audio] /audio/reboot auth failed");
+    return;
+  }
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Forbidden: Admin only");
+    return;
+  }
+
+  server.send(200, "text/plain", "Rebooting...");
+  delay(1000);
+  ESP.restart();
 }
 
 bool isAdmin(const String& currentUser) {
@@ -1340,6 +1357,7 @@ void setup() {
   server.on("/audio/play", HTTP_GET, handleAudioPlay);
   server.on("/audio/pause", HTTP_GET, handleAudioPause);
   server.on("/audio/toggle", HTTP_GET, handleAudioToggle);
+  server.on("/audio/reboot", HTTP_GET, handleAudioReboot);
   server.begin();
 }
 

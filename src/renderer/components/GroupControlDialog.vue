@@ -8,13 +8,23 @@
 
       <div>
         <label>Audio stream URL:
-          <input type="text" v-model.trim="audioUrl" placeholder="http://..." />
+          <select v-model="audioUrl">
+            <option value="" disabled>Select saved stream...</option>
+            <option v-for="preset in audioUrls" :key="preset.id" :value="preset.url">
+              {{ preset.name }} — {{ preset.url }}
+            </option>
+          </select>
         </label>
         </div>
 
       <div>
         <label>Playlist URLs:
-          <input type="text" v-model.trim="playlistUrls" placeholder="http://.../001.mp3, http://.../002.mp3" />
+          <select v-model="playlistId">
+            <option value="" disabled>Select saved playlist...</option>
+            <option v-for="playlist in playlists" :key="playlist.id" :value="playlist.id">
+              {{ playlist.name }} — {{ playlist.urls?.length || 0 }} URLs
+            </option>
+          </select>
         </label>
       </div>     
       
@@ -29,9 +39,10 @@
       <!-- Управление -->
       <div class="actions">
         <button @click="setAudioUrlForGroups" :disabled="!audioUrl">Set Audio URL</button>
-        <button @click="sendPlaylistForGroups" :disabled="!playlistUrls">Send Playlist</button>
+        <button @click="sendPlaylistForGroups" :disabled="!playlistId">Send Playlist</button>
         <button @click="sendAudioCommandForGroups('play')" :disabled="selectedGroups.length === 0">Play</button>
-        <button @click="sendAudioCommandForGroups('pause')" :disabled="selectedGroups.length === 0">Pause</button>                
+        <button @click="sendAudioCommandForGroups('pause')" :disabled="selectedGroups.length === 0">Pause</button>
+        <button @click="sendAudioCommandForGroups('reboot')" :disabled="selectedGroups.length === 0">Reboot</button>                      
         <button @click="$emit('close')">Close</button>
       </div>
     </div>
@@ -41,12 +52,12 @@
 
 <script>
 export default {
-  props: ['devices', 'allGroups'],
+  props: ['devices', 'allGroups', 'audioUrls', 'playlists'],
   data() {
     return {
       selectedGroups: [],      
       audioUrl: '',
-      playlistUrls: '',
+      playlistId: '',
     };
   },
   computed: {
@@ -91,10 +102,8 @@ export default {
       }
     },
     async sendPlaylistForGroups() {
-      const urls = this.playlistUrls
-        .split(',')
-        .map(url => url.trim())
-        .filter(Boolean);
+      const playlist = this.playlists.find(item => item.id === this.playlistId);
+      const urls = Array.isArray(playlist?.urls) ? playlist.urls : [];
 
       if (urls.length === 0) return;
 
@@ -155,7 +164,7 @@ export default {
 .dialog {
   background: white;
   padding: 10px;
-  width: 300px;
+  width: 420px;
   border-radius: 8px;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
 }

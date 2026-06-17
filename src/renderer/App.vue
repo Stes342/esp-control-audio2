@@ -50,25 +50,24 @@
           </button>
         </div>
         <div v-if="showSetAudioInline" class="submenu inline-audio-panel">
-          <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
-          <input
-            type="text"
-            v-model.trim="selectedAudioUrl"
-            placeholder="https://..."
-            class="inline-audio-input"
-          />
+          <select v-model="selectedAudioUrl" class="inline-audio-input">
+            <option value="" disabled>Select saved stream...</option>
+            <option v-for="preset in schedulerAudioUrls" :key="preset.id" :value="preset.url">
+              {{ preset.name }} — {{ preset.url }}
+            </option>
+          </select>
           <button @click="sendAudioUrlToSelected" :disabled="!selectedAudioUrl || !selectedDevice">Send</button>
           <button @click="showSetAudioInline = false">Close</button>
         </div>
         <div v-if="showSetPlaylistInline" class="submenu inline-audio-panel">
           <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
-          <input
-            type="text"
-            v-model.trim="selectedPlaylistUrls"
-            placeholder="https://.../001.mp3, https://.../002.mp3"
-            class="inline-audio-input"
-          />
-          <button @click="sendPlaylistToSelected" :disabled="!selectedPlaylistUrls || !selectedDevice">Send</button>
+          <select v-model="selectedPlaylistId" class="inline-audio-input">
+            <option value="" disabled>Select saved playlist...</option>
+            <option v-for="playlist in schedulerPlaylists" :key="playlist.id" :value="playlist.id">
+              {{ playlist.name }} — {{ playlist.urls?.length || 0 }} URLs
+            </option>
+          </select>
+          <button @click="sendPlaylistToSelected" :disabled="!selectedPlaylistId || !selectedDevice">Send</button>
           <button @click="showSetPlaylistInline = false">Close</button>
         </div>
         <div class="main-content split">
@@ -304,6 +303,8 @@
       v-if="showGroupControlDialog"
       :devices="devices"
       :allGroups="allGroups"
+      :audioUrls="schedulerAudioUrls"
+      :playlists="schedulerPlaylists"
       @close="closeGroupControl"
     />
   </div>
@@ -365,8 +366,10 @@ export default {
       includeCredentials: true,
       showSetAudioInline: false,
       selectedAudioUrl: '',
+      schedulerAudioUrls: [],
+      schedulerPlaylists: [],
       showSetPlaylistInline: false,
-      selectedPlaylistUrls: '',
+      selectedPlaylistId: '',
       schedulerInterval: null,
       schedulerCheckRunning: false,
       executedScheduledEvents: new Set(),
@@ -475,6 +478,7 @@ export default {
         device.wifiRssi = null;
         device.audioPlaybackState = '';
         device.audioNowPlaying = '';
+        device.audioNowPlayingUrl = '';
         return;
       }
 
@@ -483,6 +487,7 @@ export default {
       device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
       device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
       device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
+      device.audioNowPlayingUrl = audio.url || status.audioUrl || status.url || '';
     },
 
     wifiSignalLabel(device) {
@@ -500,9 +505,48 @@ export default {
       return '—';
     },
 
+    endpointNameFromUrl(url) {
+      const clean = String(url || '').split('?')[0];
+      const slashIndex = clean.lastIndexOf('/');
+      return slashIndex >= 0 ? clean.slice(slashIndex + 1) : clean;
+    },
+
+    normalizedPlaybackValue(value) {
+      const text = String(value || '').trim();
+      try {
+        return decodeURIComponent(text).toLowerCase();
+      } catch {
+        return text.toLowerCase();
+      }
+    },
+
+    playbackMatchesCurrent(device, url) {
+      const currentValues = [
+        device.audioNowPlayingUrl,
+        device.audioNowPlaying,
+      ]
+        .map(value => this.normalizedPlaybackValue(value))
+        .filter(Boolean);
+
+      const presetUrl = this.normalizedPlaybackValue(url);
+      const presetEndpoint = this.normalizedPlaybackValue(this.endpointNameFromUrl(url));
+
+      return currentValues.some(value => value === presetUrl || value === presetEndpoint);
+    },
+
+    savedNowPlayingLabel(device) {
+      const streamPreset = this.schedulerAudioUrls.find(preset => this.playbackMatchesCurrent(device, preset.url));
+      if (streamPreset?.name) return streamPreset.name;
+
+      const playlistPreset = this.schedulerPlaylists.find(playlist => (playlist.urls || []).some(url => this.playbackMatchesCurrent(device, url)));
+      if (playlistPreset?.name) return playlistPreset.name;
+
+      return '';
+    },
+
     nowPlayingLabel(device) {
       if (!device.available) return 'Offline';
-      return device.audioNowPlaying || '—';
+      return this.savedNowPlayingLabel(device) || device.audioNowPlaying || '—';
     },
 
     async readModuleStatus(response) {
@@ -522,6 +566,7 @@ export default {
         device.wifiRssi = null;
         device.audioPlaybackState = '';
         device.audioNowPlaying = '';
+        device.audioNowPlayingUrl = '';
         return;
       }
 
@@ -530,6 +575,7 @@ export default {
       device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
       device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
       device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
+      device.audioNowPlayingUrl = audio.url || status.audioUrl || status.url || '';
     },
 
     wifiSignalLabel(device) {
@@ -547,9 +593,48 @@ export default {
       return '—';
     },
 
+    endpointNameFromUrl(url) {
+      const clean = String(url || '').split('?')[0];
+      const slashIndex = clean.lastIndexOf('/');
+      return slashIndex >= 0 ? clean.slice(slashIndex + 1) : clean;
+    },
+
+    normalizedPlaybackValue(value) {
+      const text = String(value || '').trim();
+      try {
+        return decodeURIComponent(text).toLowerCase();
+      } catch {
+        return text.toLowerCase();
+      }
+    },
+
+    playbackMatchesCurrent(device, url) {
+      const currentValues = [
+        device.audioNowPlayingUrl,
+        device.audioNowPlaying,
+      ]
+        .map(value => this.normalizedPlaybackValue(value))
+        .filter(Boolean);
+
+      const presetUrl = this.normalizedPlaybackValue(url);
+      const presetEndpoint = this.normalizedPlaybackValue(this.endpointNameFromUrl(url));
+
+      return currentValues.some(value => value === presetUrl || value === presetEndpoint);
+    },
+
+    savedNowPlayingLabel(device) {
+      const streamPreset = this.schedulerAudioUrls.find(preset => this.playbackMatchesCurrent(device, preset.url));
+      if (streamPreset?.name) return streamPreset.name;
+
+      const playlistPreset = this.schedulerPlaylists.find(playlist => (playlist.urls || []).some(url => this.playbackMatchesCurrent(device, url)));
+      if (playlistPreset?.name) return playlistPreset.name;
+
+      return '';
+    },
+
     nowPlayingLabel(device) {
       if (!device.available) return 'Offline';
-      return device.audioNowPlaying || '—';
+      return this.savedNowPlayingLabel(device) || device.audioNowPlaying || '—';
     },
 
     async startAvailabilityCheck() {
@@ -937,30 +1022,49 @@ export default {
     },
     openGroupControl() {
       this.showGroupControlDialog = true;
+      this.loadSchedulerPresets();
     },
     closeGroupControl() {
       this.showGroupControlDialog = false;
     },
 
-    toggleSetAudioInline() {
+    async toggleSetAudioInline() {
       if (!this.selectedDevice) {
         alert('Select a module first in Control tab.');
         return;
       }
       this.showSetAudioInline = !this.showSetAudioInline;
-      if (this.showSetAudioInline && !this.selectedAudioUrl) {
-        this.selectedAudioUrl = '';
+      if (this.showSetAudioInline) {
+        await this.loadSchedulerAudioUrls();
+        if (!this.schedulerAudioUrls.some(preset => preset.url === this.selectedAudioUrl)) {
+          this.selectedAudioUrl = '';
+        }
       }
     },
 
-    toggleSetPlaylistInline() {
+    async toggleSetPlaylistInline() {
       if (!this.selectedDevice) {
         alert('Select a module first in Control tab.');
         return;
       }
       this.showSetPlaylistInline = !this.showSetPlaylistInline;
-      if (this.showSetPlaylistInline && !this.selectedPlaylistUrls) {
-        this.selectedPlaylistUrls = '';
+      if (this.showSetPlaylistInline) {
+        await this.loadSchedulerPresets();
+        if (!this.schedulerPlaylists.some(playlist => playlist.id === this.selectedPlaylistId)) {
+          this.selectedPlaylistId = '';
+        }
+      }
+    },    
+
+    async loadSchedulerPresets() {
+      try {
+        const scheduler = await this.loadSchedulerForRunner();
+        this.schedulerAudioUrls = Array.isArray(scheduler?.audioUrls) ? scheduler.audioUrls : [];
+        this.schedulerPlaylists = Array.isArray(scheduler?.playlists) ? scheduler.playlists : [];
+      } catch (error) {
+        console.error('Failed to load scheduler presets:', error);
+        this.schedulerAudioUrls = [];
+        this.schedulerPlaylists = [];
       }
     },
 
@@ -983,12 +1087,10 @@ export default {
     },
 
     async sendPlaylistToSelected() {
-      if (!this.selectedDevice || !this.selectedPlaylistUrls) return;
+      if (!this.selectedDevice || !this.selectedPlaylistId) return;
 
-      const urls = this.selectedPlaylistUrls
-        .split(',')
-        .map(url => url.trim())
-        .filter(Boolean);
+      const playlist = this.schedulerPlaylists.find(item => item.id === this.selectedPlaylistId);
+      const urls = Array.isArray(playlist?.urls) ? playlist.urls : [];
 
       if (urls.length === 0) return;
 
@@ -1107,6 +1209,7 @@ export default {
   async mounted() {
     await this.loadDevices()
     await this.loadGroups()
+    await this.loadSchedulerPresets()
     await this.startAvailabilityCheck()
     this.startSchedulerRunner()
   },
