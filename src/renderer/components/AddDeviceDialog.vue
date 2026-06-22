@@ -50,8 +50,8 @@ export default {
         const response = await fetch(`http://${this.ip}/identify`)
         const text = await response.text()
 
-        if (!text.includes('ESP32-POWERCTRL')) {
-          alert('This device is not a Power Control module')
+        if (!text.includes('ESP32-AUDIOCTRL')) {
+          alert('This device is not a Audio Control module')
           return
         }
 

@@ -209,7 +209,7 @@
       <summary class="scheduler-section-summary">
         <h4>Copy month</h4>
       </summary>
-      <div class="scheduler-empty">Copy current month to selected next months. Existing assignments in target months are replaced.</div>
+      <div class="scheduler-empty">Copy current month to selected next months by weekday position (for example, the 2nd Friday copies to the 2nd Friday). Existing assignments in target months are replaced.</div>
       <div class="scheduler-copy-days">
         <label v-for="month in copyMonthOptions" :key="month.value">
           <input type="checkbox" :value="month.value" v-model="copyTargetMonths" />
@@ -591,6 +591,37 @@ export default {
     dateForMonthDay(monthValue, day) {
       return `${monthValue}-${String(day).padStart(2, '0')}`;
     },
+    getDateParts(dateValue) {
+      const [year, month, day] = dateValue.split('-').map(Number);
+      return { year, month, day };
+    },
+    getWeekdayOrdinalInMonth(dateValue) {
+      const { year, month, day } = this.getDateParts(dateValue);
+      const weekday = new Date(year, month - 1, day).getDay();
+      let ordinal = 0;
+
+      for (let candidateDay = 1; candidateDay <= day; candidateDay += 1) {
+        if (new Date(year, month - 1, candidateDay).getDay() === weekday) {
+          ordinal += 1;
+        }
+      }
+
+      return { weekday, ordinal };
+    },
+    dateForMonthWeekdayOrdinal(monthValue, weekday, ordinal) {
+      const [year, month] = monthValue.split('-').map(Number);
+      const daysCount = this.daysInMonth(monthValue);
+      let currentOrdinal = 0;
+
+      for (let day = 1; day <= daysCount; day += 1) {
+        if (new Date(year, month - 1, day).getDay() === weekday) {
+          currentOrdinal += 1;
+          if (currentOrdinal === ordinal) return this.dateForMonthDay(monthValue, day);
+        }
+      }
+
+      return '';
+    },
     changeCalendarMonth(offset) {
       const [year, month] = this.calendarMonth.split('-').map(Number);
       const next = new Date(year, month - 1 + offset, 1);
@@ -716,14 +747,17 @@ export default {
     async copyCurrentMonthToMonths() {
       if (this.copyTargetMonths.length === 0) return;
       const sourceAssignments = this.scheduler.calendarAssignments.filter(assignment => assignment.date?.startsWith(`${this.calendarMonth}-`));
+      const weekdayAssignments = sourceAssignments.map((assignment) => ({
+        ...this.getWeekdayOrdinalInMonth(assignment.date),
+        schedulerIds: assignment.schedulerIds.slice()
+      }));
       for (const targetMonth of this.copyTargetMonths) {
         this.scheduler.calendarAssignments = this.scheduler.calendarAssignments.filter(assignment => !assignment.date?.startsWith(`${targetMonth}-`));
-        const daysCount = this.daysInMonth(targetMonth);
-        for (const assignment of sourceAssignments) {
-          const sourceDay = Number(assignment.date.slice(8, 10));
-          if (sourceDay > daysCount) continue;
+        for (const assignment of weekdayAssignments) {
+          const targetDate = this.dateForMonthWeekdayOrdinal(targetMonth, assignment.weekday, assignment.ordinal);
+          if (!targetDate) continue;
           this.scheduler.calendarAssignments.push({
-            date: this.dateForMonthDay(targetMonth, sourceDay),
+            date: targetDate,
             schedulerIds: assignment.schedulerIds.slice()
           });
         }

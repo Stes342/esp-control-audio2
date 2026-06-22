@@ -99,7 +99,9 @@
                   </span>                  
                   &nbsp; | &nbsp; <strong>WiFi:</strong> {{ wifiSignalLabel(device) }}
                   &nbsp; | &nbsp; <strong>Audio:</strong> {{ playbackStateLabel(device) }}
-                  &nbsp; | &nbsp; <strong>Now playing:</strong> {{ nowPlayingLabel(device) }}
+                  <br>
+                  <strong>Now playing:</strong> {{ nowPlayingLabel(device) }}
+                  <br>                  
                 </p>
               </div>
             </div>
@@ -371,6 +373,7 @@ export default {
       schedulerInterval: null,
       schedulerCheckRunning: false,
       executedScheduledEvents: new Set(),
+      restoreInputFocusHandler: null,
     }
   },
   computed: {
@@ -675,7 +678,7 @@ export default {
     },
 
     startSchedulerRunner() {
-      const intervalMs = 1000;
+      const intervalMs = 10000;
       const check = () => this.runDueSchedulerEvents();
 
       check();
@@ -1115,6 +1118,56 @@ export default {
       }
     },
 
+    isEditableField(element) {
+      if (!element || element.disabled || element.readOnly) return false;
+      const tagName = element.tagName?.toLowerCase();
+      return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || element.isContentEditable;
+    },
+
+    restoreEditableFieldFocus(event) {
+      const field = event.target;
+      if (!this.isEditableField(field)) return;
+
+      window.focus();
+      requestAnimationFrame(() => {
+        if (document.activeElement !== field && this.isEditableField(field)) {
+          field.focus({ preventScroll: true });
+        }
+      });
+    },
+
+    enableEditableFieldFocusRestore() {
+      if (this.restoreInputFocusHandler) return;
+      this.restoreInputFocusHandler = this.restoreEditableFieldFocus.bind(this);
+      document.addEventListener('pointerdown', this.restoreInputFocusHandler, true);
+      document.addEventListener('focusin', this.restoreInputFocusHandler, true);
+    },
+
+    disableEditableFieldFocusRestore() {
+      if (!this.restoreInputFocusHandler) return;
+      document.removeEventListener('pointerdown', this.restoreInputFocusHandler, true);
+      document.removeEventListener('focusin', this.restoreInputFocusHandler, true);
+      this.restoreInputFocusHandler = null;
+    },
+
+    getImportDevices(importedData) {
+      if (Array.isArray(importedData)) return importedData;
+      if (Array.isArray(importedData?.modules)) return importedData.modules;
+      if (Array.isArray(importedData?.devices)) return importedData.devices;
+      throw new Error("Imported file must contain a device array or a configuration object");
+    },
+
+    getImportGroups(importedData) {
+      return Array.isArray(importedData?.groups) ? importedData.groups.filter(Boolean) : [];
+    },
+
+    getImportScheduler(importedData) {
+      if (!importedData || typeof importedData !== 'object' || Array.isArray(importedData)) return null;
+      return importedData.scheduler && typeof importedData.scheduler === 'object'
+        ? this.normalizeScheduler(importedData.scheduler)
+        : null;
+    },
+
     getImportDevices(importedData) {
       if (Array.isArray(importedData)) return importedData;
       if (Array.isArray(importedData?.modules)) return importedData.modules;
@@ -1243,6 +1296,7 @@ export default {
 
   },
   async mounted() {
+    this.enableEditableFieldFocusRestore()
     await this.loadDevices()
     await this.loadGroups()
     await this.loadSchedulerPresets()
@@ -1250,6 +1304,7 @@ export default {
     this.startSchedulerRunner()
   },
   beforeUnmount() {
+    this.disableEditableFieldFocusRestore()
     if (this.checkInterval) clearInterval(this.checkInterval)
     if (this.schedulerInterval) clearInterval(this.schedulerInterval)
   }

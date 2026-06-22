@@ -46,7 +46,8 @@ function createWindow () {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'), // ✅ подключение preload
       contextIsolation: true,                      // ✅ обязательно
-      nodeIntegration: false                       // ✅ обязательно
+      nodeIntegration: false,                       // ✅ обязательно
+      backgroundThrottling: false
     }
   })
 

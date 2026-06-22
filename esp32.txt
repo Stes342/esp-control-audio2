@@ -1,4 +1,3 @@
-//17.06.2026
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
@@ -9,7 +8,7 @@
 #include <ArduinoJson.h>
 #include <base64.h>
 #include <Audio.h>
-const char* hostname = "power-control";
+const char* hostname = "audio-control";
 #define RELAY_COUNT 4
 const uint8_t RELAY_PINS[RELAY_COUNT] = {5, 6, 7, 15};
 // I2S DAC pins (ESP32-S3)
@@ -23,6 +22,7 @@ const uint8_t RELAY_PINS[RELAY_COUNT] = {5, 6, 7, 15};
 #define AUDIO_PLAYLIST_STATE_CHECK_MS 200
 #define AUDIO_PLAYLIST_START_TIMEOUT_MS 12000
 unsigned long playlistStoppedAt = 0;
+unsigned long radioReconnectTimer = 0;
 
 WebServer server(80);
 Preferences preferences;
@@ -48,7 +48,7 @@ struct RadioStation {
 };
 
 const RadioStation radioStations[] = {
-  {"Goldi", "http://195.85.219.90:8000/stream"}    
+  {"Funk Radio", "http://jazz-wr06.ice.infomaniak.ch/jazz-wr06-128.mp3"}    
 };
 const int radioStationsCount = sizeof(radioStations) / sizeof(radioStations[0]);
 int currentStationIndex = 0;
@@ -1180,23 +1180,24 @@ void setup() {
   wifiManager.addParameter(&custom_password);
   wifiManager.setTimeout(180);
   wifiManager.setAPCallback(configModeCallback);
+  WiFi.setHostname(hostname);
 
   uint8_t mac[6];
   WiFi.macAddress(mac);
   char suffix[7];
   sprintf(suffix, "%02X%02X%02X", mac[3], mac[4], mac[5]);
-  deviceName = "power-" + String(suffix);
+  deviceName = "audio-" + String(suffix);
   Serial.print("Device Name: ");
   Serial.println(deviceName);
 
-  if (!wifiManager.autoConnect("POWER CONTROL", "12345678")) {
+  if (!wifiManager.autoConnect("AUDIO CONTROL", "12345678")) {
     Serial.println("Can't connect! Rebooting...");
     delay(3000);
     ESP.restart();    
   }
   Serial.println("WiFi connected: " + WiFi.localIP().toString());
   udp.begin(localUdpPort);
-  WiFi.setHostname(hostname);
+  
 
   if (shouldSaveConfig) {
     preferences.begin("auth", false);
@@ -1331,7 +1332,7 @@ void setup() {
   
   server.on("/identify", HTTP_GET, []() {
     String macStr = WiFi.macAddress();
-    server.send(200, "text/plain", "ESP32-POWERCTRL|MAC=" + macStr + "|NAME=" + locationName);
+    server.send(200, "text/plain", "ESP32-AUDIOCTRL|MAC=" + macStr + "|NAME=" + locationName);
   });
 
   server.on("/getAccess", HTTP_GET, []() {
@@ -1371,6 +1372,34 @@ void loop() {
   if (isConnected) {
     audio.loop();
   }  
+  // Автоматическое восстановление интернет-радио
+  if (!playlistActive &&
+      !isPaused &&
+      WiFi.status() == WL_CONNECTED &&
+      !audio.isRunning()) {
+
+      if (radioReconnectTimer == 0) {
+          radioReconnectTimer = millis();
+      }
+
+      if (millis() - radioReconnectTimer >= 5000) {
+
+          Serial.println("[audio] Stream lost, reconnecting...");
+
+          audio.stopSong();
+          delay(100);
+
+          isConnected = connectToStation(
+              customStationName.c_str(),
+              radioUrl
+          );
+
+          radioReconnectTimer = 0;
+      }
+  } else {
+      radioReconnectTimer = 0;
+  }
+    
   if (playlistActive && isConnected && !isPaused && millis() - playlistLastStateCheck >= AUDIO_PLAYLIST_STATE_CHECK_MS) {
     playlistLastStateCheck = millis();
 
@@ -1395,24 +1424,7 @@ void loop() {
         isConnected = false;
         playNextPlaylistItem();
       }
-    }
-  
-
-    if (playlistSawRunning && !running && millis() - playlistItemStartedAt > 1500) {
-      unsigned long itemAge = millis() - playlistItemStartedAt;
-      unsigned long stopGrace = itemAge < AUDIO_PLAYLIST_EARLY_END_PROTECT_MS
-        ? AUDIO_PLAYLIST_EARLY_END_GRACE_MS
-        : AUDIO_PLAYLIST_END_GRACE_MS;
-
-      if (playlistStoppedAt == 0) {
-        playlistStoppedAt = millis();
-        Serial.println("[audio] playlist item looks stopped, waiting for EOF grace period");
-      } else if (millis() - playlistStoppedAt >= stopGrace) {
-        Serial.println("[audio] playlist item finished by isRunning() fallback");
-        isConnected = false;
-        playNextPlaylistItem();
-      }
-    }
+    }    
   }
 
   bool running = audio.isRunning();
@@ -1421,22 +1433,7 @@ void loop() {
     playlistSawRunning = true;
     playlistStoppedAt = 0;
   }
-
-  if (playlistSawRunning && !running && millis() - playlistItemStartedAt > 1500) {
-    unsigned long itemAge = millis() - playlistItemStartedAt;
-    unsigned long stopGrace = itemAge < AUDIO_PLAYLIST_EARLY_END_PROTECT_MS
-      ? AUDIO_PLAYLIST_EARLY_END_GRACE_MS
-      : AUDIO_PLAYLIST_END_GRACE_MS;
-    if (playlistStoppedAt == 0) {
-      playlistStoppedAt = millis();
-      Serial.println("[audio] playlist item looks stopped, waiting for EOF grace period");
-    } else if (millis() - playlistStoppedAt >= stopGrace) {
-      Serial.println("[audio] playlist item finished by isRunning() fallback");
-      isConnected = false;
-      playNextPlaylistItem();
-    }
-    
-  }
+  
   
   int packetSize = udp.parsePacket();
   if (packetSize) {
