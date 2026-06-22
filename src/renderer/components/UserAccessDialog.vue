@@ -29,6 +29,8 @@
   </div>
 </template>
 <script>
+import ApiService from '../services/ApiService';
+
 export default {
   props: ['devices'], // получишь чекнутые устройства от родителя
   data() {
@@ -79,10 +81,7 @@ export default {
         });
       });
       try {
-        const response = await fetch(`http://localhost:3000/proxy/${device.ip}/set_user_access`, {
-          method: 'POST',
-          body: fd
-        });
+        const response = await ApiService.postForm(device, '/set_user_access', fd);
         if (response.ok) {
           results.push(`✅ ${device.name}: Access updated`);
         } else {

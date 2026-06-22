@@ -51,6 +51,8 @@
 
 
 <script>
+import ApiService from '../services/ApiService';
+
 export default {
   props: ['devices', 'allGroups', 'audioUrls', 'playlists'],
   data() {
@@ -86,16 +88,11 @@ export default {
         if (includeAll) return true;
         if (includeNoGroup && !d.group) return true;
         return this.selectedGroups.includes(d.group);
-      });
-      const encodedUrl = encodeURIComponent(this.audioUrl);
+      });      
       for (const device of targetDevices) {
         if (!device.available) continue;
         try {
-          const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/seturl?url=${encodedUrl}`);
-          if (!response.ok) {
-            const text = await response.text();
-            console.warn(`Audio URL failed on ${device.ip}: ${response.status} ${text}`);
-          }
+          await ApiService.setAudioUrl(device, this.audioUrl);
         } catch (err) {
           console.warn(`Audio URL failed on ${device.ip}`, err);
         }
@@ -110,20 +107,10 @@ export default {
       for (const device of this.getTargetDevices()) {
         if (!device.available) continue;
         try {
-          const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/playlist`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              urls,
-              returnToPrevious: true,
-            }),
-          });
-          if (!response.ok) {
-            const text = await response.text();
-            console.warn(`Playlist failed on ${device.ip}: ${response.status} ${text}`);
-          }
+          await ApiService.sendPlaylist(device, {
+            urls,
+            returnToPrevious: true,
+          });          
         } catch (err) {
           console.warn(`Playlist failed on ${device.ip}`, err);
         }
@@ -133,11 +120,7 @@ export default {
       for (const device of this.getTargetDevices()) {
         if (!device.available) continue;
         try {
-          const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/${command}`);
-          if (!response.ok) {
-            const text = await response.text();
-            console.warn(`Audio ${command} failed on ${device.ip}: ${response.status} ${text}`);
-          }
+          await ApiService.audioCommand(device, command);
         } catch (err) {
           console.warn(`Audio ${command} failed on ${device.ip}`, err);
         }

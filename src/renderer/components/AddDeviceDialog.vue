@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import ApiService from '../services/ApiService';
 
 export default {
   name: 'AddDeviceDialog',
@@ -47,7 +47,7 @@ export default {
       }
 
       try {
-        const response = await fetch(`http://${this.ip}/identify`)
+        const response = await ApiService.identifyByIp(this.ip)
         const text = await response.text()
 
         if (!text.includes('ESP32-AUDIOCTRL')) {

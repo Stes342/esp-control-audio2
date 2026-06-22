@@ -319,6 +319,7 @@ import GroupDialog from './components/GroupDialog.vue';
 import GroupControlDialog from './components/GroupControlDialog.vue';
 import SchedulerPanel from './components/SchedulerPanel.vue';
 
+
 const SCHEDULER_FALLBACK_KEY = 'espControlScheduler';
 
 export default {
@@ -643,15 +644,10 @@ export default {
         const timeout = setTimeout(() => controller.abort(), 3000);
 
         try {
-          const res = await fetch(`http://localhost:3000/proxy/${device.ip}/status`, {
+          const moduleStatus = await ApiService.getStatus(device, {
             signal: controller.signal
           });
-          if (!res.ok) {
-            this.applyModuleStatus(device, null);
-            return false;
-          }
-
-          const moduleStatus = await this.readModuleStatus(res);
+          
           this.applyModuleStatus(device, moduleStatus);
           return true;
         } catch {
@@ -827,38 +823,15 @@ export default {
     },
 
     async sendScheduledAudioUrl(device, url) {
-      const encodedUrl = encodeURIComponent(url);
-      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/seturl?url=${encodedUrl}`);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text}`);
-      }
+      await ApiService.setAudioUrl(device, url);
     },
 
     async sendScheduledPlaylist(device, playlist) {
-      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/playlist`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          urls: playlist.urls,
-          returnToPrevious: playlist.returnToPrevious !== false,
-        }),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text}`);
-      }
+      await ApiService.sendPlaylist(device, playlist);
     },
 
     async sendScheduledAudioCommand(device, command) {
-      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/${command}`);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text}`);
-      }
+      await ApiService.audioCommand(device, command);
     },
 
     async removeDevice(device) {
@@ -1071,11 +1044,7 @@ export default {
 
       const encodedUrl = encodeURIComponent(this.selectedAudioUrl);
       try {
-        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/audio/seturl?url=${encodedUrl}`);
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`HTTP ${response.status}: ${text}`);
-        }
+        await ApiService.setAudioUrl(this.selectedDevice, this.selectedAudioUrl);
         alert(`✅ Audio URL sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
         this.showSetAudioInline = false;
       } catch (err) {
@@ -1093,20 +1062,10 @@ export default {
       if (urls.length === 0) return;
 
       try {
-        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/audio/playlist`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            urls,
-            returnToPrevious: true,
-          }),
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`HTTP ${response.status}: ${text}`);
-        }
+        await ApiService.sendPlaylist(this.selectedDevice, {
+          urls,
+          returnToPrevious: true,
+        });        
         alert(`✅ Playlist sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
         this.showSetPlaylistInline = false;
       } catch (err) {

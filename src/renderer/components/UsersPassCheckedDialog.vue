@@ -22,6 +22,8 @@
 </template>
 
 <script>
+import ApiService from '../services/ApiService';
+
 export default {
   props: ['devices'],
   data() {
@@ -45,10 +47,7 @@ export default {
           if (this.user3) params.append('user3_pass', this.user3);
           if (this.user4) params.append('user4_pass', this.user4);
 
-          const res = await fetch(`http://localhost:3000/proxy/${device.ip}/set_user_access`, {
-            method: 'POST',
-            body: params
-          });
+          const res = await ApiService.postForm(device, '/set_user_access', params);
 
           if (res.ok) {
             results.push(`✅ ${device.name}: Updated`);

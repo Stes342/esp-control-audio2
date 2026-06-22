@@ -16,6 +16,8 @@
 </template>
 
 <script>
+import ApiService from '../services/ApiService';
+
 export default {
   props: ['devices'],
   data() {
@@ -39,10 +41,7 @@ export default {
         body.append('new_password', this.password);
 
         try {
-          const res = await fetch(`http://localhost:3000/proxy/${device.ip}/setauth`, {
-            method: 'POST',
-            body
-          });
+          const res = await ApiService.postForm(device, '/setauth', body);
 
           if (res.ok) {
             results.push(`✅ ${device.name}: Updated`);
