@@ -17,19 +17,19 @@
             :class="{ active: selectedGroup === 'All' }"
             @click="selectGroup('All')"
           >
-            All
+            All ({{ groupCounts.All }})
           </button>
           <button
             :class="{ active: selectedGroup === 'Offline' }"
             @click="selectGroup('Offline')"
           >
-            Offline
+            Offline ({{ groupCounts.Offline }})
           </button>
           <button
             :class="{ active: selectedGroup === 'NoGroup' }"
             @click="selectGroup('NoGroup')"
           >
-            No Group
+            No Group ({{ groupCounts.NoGroup }})
           </button>
           <button @click="openGroupControl">
             Group Control
@@ -46,7 +46,7 @@
             :class="{ active: selectedGroup === group }"
             @click="selectGroup(group)"
           >
-            {{ group }}
+            {{ group }} ({{ groupCounts[group] || 0 }})
           </button>
         </div>
         <div v-if="showSetAudioInline" class="submenu inline-audio-panel">
@@ -123,13 +123,13 @@
             :class="{ active: selectedGroup === 'All' }"
             @click="selectGroup('All')"
           >
-            All
+            All ({{ groupCounts.All }})
           </button>
           <button
             :class="{ active: selectedGroup === 'NoGroup' }"
             @click="selectGroup('NoGroup')"
           >
-            No Group
+            No Group ({{ groupCounts.NoGroup }})
           </button>
           <button @click="openLogPassChecked" :disabled="checkedDevices.length === 0">Log\Pass</button>
           <button @click="removeChecked" :disabled="checkedDevices.length === 0">Delete</button>
@@ -245,7 +245,9 @@
 
     <!-- Диалог AddDeviceDialog: вставляем сюда! -->
     <div v-if="showAddDialog" class="dialog-backdrop">
-      <AddDeviceDialog @close="handleAddDeviceClose" />
+      <AddDeviceDialog @close="handleAddDeviceClose" 
+      @notify="showNotification"
+      />
     </div>
     <!-- Диалог LogPassDialog: вставляем сюда! -->
     <div v-if="showLogPassDialog" class="dialog-backdrop">
@@ -305,6 +307,19 @@
       :playlists="schedulerPlaylists"
       @close="closeGroupControl"
     />
+    <div v-if="showToast" class="toast">
+      {{ toastMessage }}
+    </div>
+    <div v-if="showConfirmDialog" class="dialog-backdrop">
+      <div class="dialog">
+        <h3>Confirmation</h3>
+        <p>{{ confirmMessage }}</p>
+        <div class="actions">
+          <button @click="confirmDelete">Yes</button>
+          <button @click="cancelDelete">No</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -318,7 +333,6 @@ import UserAccessDialog from './components/UserAccessDialog.vue';
 import GroupDialog from './components/GroupDialog.vue';
 import GroupControlDialog from './components/GroupControlDialog.vue';
 import SchedulerPanel from './components/SchedulerPanel.vue';
-
 
 const SCHEDULER_FALLBACK_KEY = 'espControlScheduler';
 
@@ -372,6 +386,10 @@ export default {
       schedulerInterval: null,
       schedulerCheckRunning: false,
       executedScheduledEvents: new Set(),
+      toastMessage: '',
+      showToast: false,
+      showConfirmDialog: false,
+      confirmMessage: '',
     }
   },
   computed: {
@@ -381,6 +399,19 @@ export default {
         if (device.group) groups.add(device.group)
       })
       return Array.from(groups).sort()
+    },
+    groupCounts() {
+      const counts = {
+        All: this.devices.length,
+        Offline: this.devices.filter(d => !d.available).length,
+        NoGroup: this.devices.filter(d => !d.group).length
+      };
+
+      this.deviceGroups.forEach(group => {
+        counts[group] = this.devices.filter(d => d.group === group).length;
+      });
+
+      return counts;
     },
     filteredDevices() {
       return this.devices
@@ -470,30 +501,7 @@ export default {
         console.warn('Failed to parse module status:', error);
         return null;
       }
-    },
-
-    applyModuleStatus(device, status) {
-      if (!status || Array.isArray(status)) {
-        device.wifiRssi = null;
-        device.audioPlaybackState = '';
-        device.audioNowPlaying = '';
-        device.audioNowPlayingUrl = '';
-        return;
-      }
-
-      const audio = status.audio || status.playback || {};
-      const wifi = status.wifi || {};
-      device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
-      device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
-      device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
-      device.audioNowPlayingUrl = audio.url || status.audioUrl || status.url || '';
-    },
-
-    wifiSignalLabel(device) {
-      if (!device.available) return 'Offline';
-      if (device.wifiRssi === null || device.wifiRssi === undefined || device.wifiRssi === '') return '—';
-      return `${device.wifiRssi} dBm`;
-    },
+    },    
 
     playbackStateLabel(device) {
       if (!device.available) return 'Offline';
@@ -572,6 +580,7 @@ export default {
       const audio = status.audio || status.playback || {};
       const wifi = status.wifi || {};
       device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
+      device.wifiSsid = wifi.ssid ?? status.wifiSsid ?? '';
       device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
       device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
       device.audioNowPlayingUrl = audio.url || status.audioUrl || status.url || '';
@@ -579,9 +588,21 @@ export default {
 
     wifiSignalLabel(device) {
       if (!device.available) return 'Offline';
-      if (device.wifiRssi === null || device.wifiRssi === undefined || device.wifiRssi === '') return '—';
-      return `${device.wifiRssi} dBm`;
+
+      const rssi =
+        device.wifiRssi === null ||
+        device.wifiRssi === undefined ||
+        device.wifiRssi === ''
+          ? '—'
+          : `${device.wifiRssi} dBm`;
+
+      if (device.wifiSsid) {
+        return `${rssi} (${device.wifiSsid})`;
+      }
+
+      return rssi;
     },
+
 
     playbackStateLabel(device) {
       if (!device.available) return 'Offline';
@@ -644,10 +665,15 @@ export default {
         const timeout = setTimeout(() => controller.abort(), 3000);
 
         try {
-          const moduleStatus = await ApiService.getStatus(device, {
+          const res = await fetch(`http://localhost:3000/proxy/${device.ip}/status`, {
             signal: controller.signal
           });
-          
+          if (!res.ok) {
+            this.applyModuleStatus(device, null);
+            return false;
+          }
+
+          const moduleStatus = await this.readModuleStatus(res);
           this.applyModuleStatus(device, moduleStatus);
           return true;
         } catch {
@@ -823,15 +849,38 @@ export default {
     },
 
     async sendScheduledAudioUrl(device, url) {
-      await ApiService.setAudioUrl(device, url);
+      const encodedUrl = encodeURIComponent(url);
+      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/seturl?url=${encodedUrl}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
     },
 
     async sendScheduledPlaylist(device, playlist) {
-      await ApiService.sendPlaylist(device, playlist);
+      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/playlist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          urls: playlist.urls,
+          returnToPrevious: playlist.returnToPrevious !== false,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
     },
 
     async sendScheduledAudioCommand(device, command) {
-      await ApiService.audioCommand(device, command);
+      const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/${command}`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
     },
 
     async removeDevice(device) {
@@ -841,9 +890,13 @@ export default {
       this.checkedDevices = this.checkedDevices.filter(mac => mac !== device.mac);
     },
 
-    async removeChecked() {
-      const confirmed = window.confirm('Are you sure you want to remove the selected devices?');
-      if (!confirmed) return;
+    removeChecked() {
+      this.confirmMessage =
+        'Are you sure you want to remove the selected devices?';
+
+      this.showConfirmDialog = true;
+    },
+    async doRemoveChecked() {
       for (const mac of this.checkedDevices) {
         console.log('Removing checked device with MAC:', mac);
         await window.storageAPI.removeModule?.(mac);
@@ -870,7 +923,7 @@ export default {
 
     
     openLogPass(device) {
-      alert(`Open Log\\Pass for ${device.name}`)
+      this.showNotification(`Open Log\\Pass for ${device.name}`)
     },
 
     openLogPass(device) {
@@ -885,7 +938,7 @@ export default {
     openSetAuthForChecked() {
       this.selectedAdminDevices = this.selectedDevices;
       if (this.selectedAdminDevices.length === 0) {
-        alert('No devices selected');
+        this.showNotification('No devices selected');
         return;
       }
       this.showSetAdminAuthDialog = true;
@@ -916,9 +969,9 @@ export default {
           const plainGroups = JSON.parse(JSON.stringify(this.availableGroups));
           console.log('[Saving] Plain Groups:', plainGroups);
           await window.storageAPI.setGroups(plainGroups);
-          alert(`✅ Group "${groupName}" created!`);
+          this.showNotification(`✅ Group "${groupName}" created!`);
         } else {
-          alert(`⚠️ Group "${groupName}" already exists.`);
+          this.showNotification(`⚠️ Group "${groupName}" already exists.`);
         }
       }
 
@@ -933,7 +986,7 @@ export default {
             await window.storageAPI.upsertModule(JSON.parse(JSON.stringify(device)));
           }
         }
-        alert(`🗑️ Group "${groupName}" deleted!`);
+        this.showNotification(`🗑️ Group "${groupName}" deleted!`);
         await this.loadDevices();
       }
 
@@ -949,7 +1002,7 @@ export default {
           this.availableGroups.push(groupName);
           await window.storageAPI.setGroups(JSON.parse(JSON.stringify(this.availableGroups)));
         }
-        alert(`✅ Devices assigned to "${groupName}"`);
+        this.showNotification(`✅ Devices assigned to "${groupName}"`);
         await this.loadDevices();
         this.checkedDevices = [];
       }
@@ -962,7 +1015,7 @@ export default {
             await window.storageAPI.upsertModule(JSON.parse(JSON.stringify(device)));
           }
         }
-        alert(`✅ Group removed from selected devices!`);
+        this.showNotification(`✅ Group removed from selected devices!`);
         await this.loadDevices();
         this.checkedDevices = [];
       }
@@ -1001,12 +1054,12 @@ export default {
 
     async toggleSetAudioInline() {
       if (!this.selectedDevice) {
-        alert('Select a module first in Control tab.');
+        this.showNotification('Select a module first in Control tab.');
         return;
       }
       this.showSetAudioInline = !this.showSetAudioInline;
       if (this.showSetAudioInline) {
-        await this.loadSchedulerAudioUrls();
+        await this.loadSchedulerPresets();
         if (!this.schedulerAudioUrls.some(preset => preset.url === this.selectedAudioUrl)) {
           this.selectedAudioUrl = '';
         }
@@ -1015,7 +1068,7 @@ export default {
 
     async toggleSetPlaylistInline() {
       if (!this.selectedDevice) {
-        alert('Select a module first in Control tab.');
+        this.showNotification('Select a module first in Control tab.');
         return;
       }
       this.showSetPlaylistInline = !this.showSetPlaylistInline;
@@ -1044,12 +1097,16 @@ export default {
 
       const encodedUrl = encodeURIComponent(this.selectedAudioUrl);
       try {
-        await ApiService.setAudioUrl(this.selectedDevice, this.selectedAudioUrl);
-        alert(`✅ Audio URL sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
+        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/audio/seturl?url=${encodedUrl}`);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`HTTP ${response.status}: ${text}`);
+        }
+        this.showNotification(`✅ Audio URL sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
         this.showSetAudioInline = false;
       } catch (err) {
         console.error('Failed to set audio URL for selected module:', err);
-        alert(`❌ Failed to send audio URL: ${err.message}`);
+        this.showNotification(`❌ Failed to send audio URL: ${err.message}`);
       }
     },
 
@@ -1062,15 +1119,25 @@ export default {
       if (urls.length === 0) return;
 
       try {
-        await ApiService.sendPlaylist(this.selectedDevice, {
-          urls,
-          returnToPrevious: true,
-        });        
-        alert(`✅ Playlist sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
+        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/audio/playlist`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            urls,
+            returnToPrevious: true,
+          }),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`HTTP ${response.status}: ${text}`);
+        }
+        this.showNotification(`✅ Playlist sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
         this.showSetPlaylistInline = false;
       } catch (err) {
         console.error('Failed to send playlist to selected module:', err);
-        alert(`❌ Failed to send playlist: ${err.message}`);
+        this.showNotification(`❌ Failed to send playlist: ${err.message}`);
       }
     },
 
@@ -1143,12 +1210,12 @@ export default {
           await this.loadSchedulerPresets();
         }
 
-        alert("✅ Configuration imported successfully!");
+        this.showNotification("✅ Configuration imported successfully!");
         await this.loadDevices();
 
       } catch (err) {
         console.error("❌ Import error:", err);
-        alert("❌ Failed to import configuration. Please check the file format.");
+        this.showNotification("❌ Failed to import configuration. Please check the file format.");
       }
 
       event.target.value = "";
@@ -1199,7 +1266,21 @@ export default {
       a.click();
       URL.revokeObjectURL(url);
     },
+    showNotification(message) {
+      this.toastMessage = message;
+      this.showToast = true;
 
+      setTimeout(() => {
+        this.showToast = false;
+      }, 3000);
+    },
+    confirmDelete() {
+      this.showConfirmDialog = false;
+      this.doRemoveChecked();
+    },
+    cancelDelete() {
+      this.showConfirmDialog = false;
+    },
   },
   async mounted() {
     await this.loadDevices()
@@ -1392,9 +1473,26 @@ main {
 .dialog {
   background: #fff;
   padding: 12px;
-  width: 360px;
+  width: 300px;
   border-radius: 8px;
   box-shadow: 0 0 20px rgba(0,0,0,0.35);
+}
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+
+  margin-top: 15px;
+}
+.actions button {
+  background: #007bff;
+  color: white;
+
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+
+  cursor: pointer;
 }
 .card-actions {
   margin-top: 8px;
@@ -1478,6 +1576,21 @@ main {
   padding: 6px 6px;
   border-radius: 4px;
   cursor: pointer;
+}
+.toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+
+  background: #007bff;
+  color: white;
+
+  padding: 12px 20px;
+  border-radius: 8px;
+
+  z-index: 9999;
+
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
 </style>

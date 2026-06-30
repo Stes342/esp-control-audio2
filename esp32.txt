@@ -1,4 +1,3 @@
-//2062026
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
@@ -1267,6 +1266,7 @@ void setup() {
 
     JsonObject wifi = doc.createNestedObject("wifi");
     wifi["rssi"] = WiFi.RSSI();
+    wifi["ssid"] = WiFi.SSID();
 
     JsonObject audioStatus = doc.createNestedObject("audio");
     audioStatus["state"] = (!isPaused && isConnected) ? "play" : "pause";
@@ -1466,4 +1466,3 @@ void loop() {
   }
   delay(10);
 }
-
