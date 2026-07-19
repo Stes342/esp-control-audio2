@@ -8,6 +8,9 @@
 #include <ArduinoJson.h>
 #include <base64.h>
 #include <Audio.h>
+#include <HTTPClient.h>
+#include <Update.h>
+#include "time.h"
 const char* hostname = "audio-control";
 #define RELAY_COUNT 4
 const uint8_t RELAY_PINS[RELAY_COUNT] = {5, 6, 7, 15};
@@ -21,8 +24,13 @@ const uint8_t RELAY_PINS[RELAY_COUNT] = {5, 6, 7, 15};
 #define AUDIO_PLAYLIST_EARLY_END_GRACE_MS 8000
 #define AUDIO_PLAYLIST_STATE_CHECK_MS 200
 #define AUDIO_PLAYLIST_START_TIMEOUT_MS 12000
+#define FW_VERSION "1.0.1"
+#define OTA_PROGRESS_STEP 20
 unsigned long playlistStoppedAt = 0;
 unsigned long radioReconnectTimer = 0;
+bool otaInProgress = false;
+int otaProgress = 0;
+String otaStatus = "OTA_OK";
 
 WebServer server(80);
 Preferences preferences;
@@ -48,7 +56,7 @@ struct RadioStation {
 };
 
 const RadioStation radioStations[] = {
-  {"Funk Radio", "http://jazz-wr06.ice.infomaniak.ch/jazz-wr06-128.mp3"}    
+  {"Club Radio", "http://uk7.internet-radio.com:8000"}    
 };
 const int radioStationsCount = sizeof(radioStations) / sizeof(radioStations[0]);
 int currentStationIndex = 0;
@@ -76,6 +84,7 @@ String playlistPreviousStreamUrl = "";
 String webLogin;
 String webPassword;
 String deviceName;
+String ntpServer = "";
 
 WiFiManagerParameter custom_login("login", "Web Login", "admin", 32);
 WiFiManagerParameter custom_password("password", "Web Password", "12345678", 32);
@@ -393,6 +402,204 @@ void finishAudioPlaylist() {
   }
 }
 
+void setOtaState(const String& status, int progress) {
+  otaStatus = status;
+  otaProgress = constrain(progress, 0, 100);
+  Serial.println("[ota] " + otaStatus + " " + String(otaProgress) + "%");
+}
+
+void firmwareUpdateTask(void* parameter) {
+  String firmwareUrl = *((String*)parameter);
+  delete (String*)parameter;
+
+  HTTPClient http;
+  WiFiClient client;
+  bool shouldRestart = false;
+
+  setOtaState("OTA_START", 0);
+
+  audio.stopSong();
+  playlistActive = false;
+  isConnected = false;
+  isPaused = true;
+  delay(200);
+
+  if (!http.begin(client, firmwareUrl)) {
+    setOtaState("OTA_ERROR_DOWNLOAD", 0);
+    otaInProgress = false;
+    vTaskDelete(NULL);
+    return;
+  }
+
+  int httpCode = http.GET();
+  if (httpCode != HTTP_CODE_OK) {
+    Serial.println("[ota] HTTP error: " + String(httpCode));
+    http.end();
+    setOtaState("OTA_ERROR_DOWNLOAD", 0);
+    otaInProgress = false;
+    vTaskDelete(NULL);
+    return;
+  }
+
+  int contentLength = http.getSize();
+  if (contentLength <= 0) {
+    Serial.println("[ota] Missing or invalid Content-Length");
+    http.end();
+    setOtaState("OTA_ERROR_DOWNLOAD", 0);
+    otaInProgress = false;
+    vTaskDelete(NULL);
+    return;
+  }
+
+  uint32_t freeSketchSpace = ESP.getFreeSketchSpace();
+  if ((uint32_t)contentLength > freeSketchSpace) {
+    Serial.println("[ota] Not enough OTA space. Content-Length=" + String(contentLength) + ", free=" + String(freeSketchSpace));
+    http.end();
+    setOtaState("OTA_ERROR_SPACE", 0);
+    otaInProgress = false;
+    vTaskDelete(NULL);
+    return;
+  }
+
+  if (!Update.begin(contentLength)) {
+    Serial.println("[ota] Update.begin failed: " + String(Update.errorString()));
+    http.end();
+    setOtaState("OTA_ERROR_SPACE", 0);
+    otaInProgress = false;
+    vTaskDelete(NULL);
+    return;
+  }
+
+  WiFiClient* stream = http.getStreamPtr();
+  uint8_t buffer[1024];
+  size_t writtenTotal = 0;
+  int lastReportedProgress = 0;
+  setOtaState("OTA_START", 0);
+
+  while (http.connected() && writtenTotal < (size_t)contentLength) {
+    size_t available = stream->available();
+    if (available) {
+      size_t toRead = min(available, sizeof(buffer));
+      int readBytes = stream->readBytes(buffer, toRead);
+      if (readBytes <= 0) {
+        continue;
+      }
+
+      size_t written = Update.write(buffer, readBytes);
+      if (written != (size_t)readBytes) {
+        Serial.println("[ota] Update.write failed: " + String(Update.errorString()));
+        Update.abort();
+        http.end();
+        setOtaState("OTA_ERROR_VERIFY", lastReportedProgress);
+        otaInProgress = false;
+        vTaskDelete(NULL);
+        return;
+      }
+
+      writtenTotal += written;
+      int progress = (writtenTotal * 100) / contentLength;
+      int steppedProgress = (progress / OTA_PROGRESS_STEP) * OTA_PROGRESS_STEP;
+      if (steppedProgress > lastReportedProgress) {
+        lastReportedProgress = steppedProgress;
+        setOtaState("OTA_" + String(steppedProgress), steppedProgress);
+      }
+    } else {
+      delay(1);
+    }
+  }
+
+  if (writtenTotal != (size_t)contentLength) {
+    Serial.println("[ota] Download incomplete. Written=" + String(writtenTotal) + ", expected=" + String(contentLength));
+    Update.abort();
+    http.end();
+    setOtaState("OTA_ERROR_DOWNLOAD", lastReportedProgress);
+    otaInProgress = false;
+    vTaskDelete(NULL);
+    return;
+  }
+
+  if (!Update.end(true)) {
+    Serial.println("[ota] Update.end failed: " + String(Update.errorString()));
+    http.end();
+    setOtaState("OTA_ERROR_VERIFY", lastReportedProgress);
+    otaInProgress = false;
+    vTaskDelete(NULL);
+    return;
+  }
+
+  http.end();
+  setOtaState("OTA_OK", 100);
+  shouldRestart = true;
+  otaInProgress = false;
+
+  if (shouldRestart) {
+    delay(1500);
+    ESP.restart();
+  }
+
+  vTaskDelete(NULL);
+}
+
+void handleFirmwareUpdate() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Forbidden: Admin only");
+    return;
+  }
+
+  if (otaInProgress) {
+    server.send(409, "text/plain", "OTA already in progress");
+    return;
+  }
+
+  String firmwareUrl = server.arg("url");
+  if (firmwareUrl.length() == 0) {
+    String body = server.arg("plain");
+    body.trim();
+    if (body.startsWith("UPDATE|")) {
+      firmwareUrl = body.substring(7);
+    } else if (body.startsWith("{")) {
+      DynamicJsonDocument doc(512);
+      DeserializationError error = deserializeJson(doc, body);
+      if (!error) {
+        firmwareUrl = doc["url"].as<String>();
+      }
+    } else if (body.startsWith("http://")) {
+      firmwareUrl = body;
+    }
+  }
+
+  firmwareUrl.trim();
+  if (!firmwareUrl.startsWith("http://")) {
+    server.send(400, "text/plain", "Invalid firmware URL. Only http:// is supported");
+    return;
+  }
+
+  otaInProgress = true;
+  setOtaState("OTA_START", 0);
+  String* taskUrl = new String(firmwareUrl);
+  BaseType_t created = xTaskCreatePinnedToCore(
+    firmwareUpdateTask,
+    "firmware_ota",
+    8192,
+    taskUrl,
+    1,
+    NULL,
+    1
+  );
+
+  if (created != pdPASS) {
+    delete taskUrl;
+    otaInProgress = false;
+    setOtaState("OTA_ERROR_DOWNLOAD", 0);
+    server.send(500, "text/plain", "OTA task failed");
+    return;
+  }
+
+  server.send(202, "text/plain", "OTA_START");
+}
+
 void playNextPlaylistItem() {
   if (!playlistActive) return;
 
@@ -547,6 +754,47 @@ void handleAudioReboot() {
   server.send(200, "text/plain", "Rebooting...");
   delay(1000);
   ESP.restart();
+}
+
+void startNtpClient() {
+  if (ntpServer.length() == 0) {
+    Serial.println("[ntp] No NTP server configured");
+    return;
+  }
+  Serial.println("[ntp] Starting NTP client, server: " + ntpServer);
+  // Local timezone UTC+3 (no DST), e.g. MSK
+  const long gmtOffsetSec = 3 * 3600;
+  const int daylightOffsetSec = 0;
+  configTime(gmtOffsetSec, daylightOffsetSec, ntpServer.c_str());
+}
+
+void handleSetNtp() {
+  Serial.println("[ntp] /ntp requested");
+  String currentUser;
+  if (!checkAuth(currentUser)) {
+    Serial.println("[ntp] /ntp auth failed");
+    return;
+  }
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Forbidden: Admin only");
+    return;
+  }
+  if (!server.hasArg("server")) {
+    server.send(400, "text/plain", "Missing server parameter");
+    return;
+  }
+  String newServer = server.arg("server");
+  newServer.trim();
+  if (newServer.length() == 0) {
+    server.send(400, "text/plain", "Empty server");
+    return;
+  }
+  ntpServer = newServer;
+  preferences.begin("ntp", false);
+  preferences.putString("server", ntpServer);
+  preferences.end();
+  startNtpClient();
+  server.send(200, "text/plain", "OK");
 }
 
 bool isAdmin(const String& currentUser) {
@@ -1197,7 +1445,12 @@ void setup() {
   }
   Serial.println("WiFi connected: " + WiFi.localIP().toString());
   udp.begin(localUdpPort);
-  
+
+  // Load saved NTP server and start client after WiFi is up
+  preferences.begin("ntp", true);
+  ntpServer = preferences.getString("server", "");
+  preferences.end();
+  startNtpClient();
 
   if (shouldSaveConfig) {
     preferences.begin("auth", false);
@@ -1278,6 +1531,27 @@ void setup() {
       audioStatus["playlistIndex"] = playlistIndex;
       audioStatus["playlistCount"] = playlistCount;
     }
+
+    JsonObject firmwareStatus = doc.createNestedObject("firmware");
+    firmwareStatus["version"] = FW_VERSION;
+    firmwareStatus["status"] = otaStatus;
+    firmwareStatus["progress"] = otaProgress;
+    firmwareStatus["updating"] = otaInProgress;
+
+    JsonObject ntpStatus = doc.createNestedObject("ntp");
+    ntpStatus["server"] = ntpServer;
+
+    struct tm timeinfo;
+    char timeStr[32] = "";
+    if (getLocalTime(&timeinfo, 0)) {
+      strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+      ntpStatus["time"] = timeStr;
+      ntpStatus["synced"] = true;
+    } else {
+      ntpStatus["time"] = "";
+      ntpStatus["synced"] = false;
+    }
+
     String json;
     serializeJson(doc, json);
     server.send(200, "application/json", json);
@@ -1352,6 +1626,8 @@ void setup() {
     serializeJson(doc, json);
     server.send(200, "application/json", json);
   });
+  server.on("/firmware/update", HTTP_POST, handleFirmwareUpdate);
+  server.on("/firmware/update", HTTP_GET, handleFirmwareUpdate);
   server.on("/audio/playlist", HTTP_POST, handleAudioPlaylist);
   server.on("/audio/volume", HTTP_GET, handleAudioVolume);
   //server.on("/audio/custom", HTTP_GET, handleAudioCustomStation);
@@ -1360,6 +1636,7 @@ void setup() {
   server.on("/audio/pause", HTTP_GET, handleAudioPause);
   server.on("/audio/toggle", HTTP_GET, handleAudioToggle);
   server.on("/audio/reboot", HTTP_GET, handleAudioReboot);
+  server.on("/ntp", HTTP_GET, handleSetNtp);
   server.begin();
 }
 

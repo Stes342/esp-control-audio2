@@ -37,16 +37,6 @@
           />
         </label>
       </div>
-
-      <div>
-        <label>NTP Server:
-          <input
-            v-model.trim="ntpServer"
-            type="text"
-            placeholder="pool.ntp.org"
-          />
-        </label>
-      </div>
       
       <!-- Выбор групп -->
       <div>
@@ -62,8 +52,7 @@
         <button @click="sendPlaylistForGroups" :disabled="!playlistId">Send Playlist</button>
         <button @click="sendAudioCommandForGroups('play')" :disabled="selectedGroups.length === 0">Play</button>
         <button @click="sendAudioCommandForGroups('pause')" :disabled="selectedGroups.length === 0">Pause</button>
-        <button @click="sendAudioCommandForGroups('reboot')" :disabled="selectedGroups.length === 0">Reboot</button>
-        <button @click="sendNtpForGroups" :disabled="selectedGroups.length === 0 || !ntpServer">Set NTP</button>
+        <button @click="sendAudioCommandForGroups('reboot')" :disabled="selectedGroups.length === 0">Reboot</button> 
         <button @click="sendFirmwareUpdateForGroups" :disabled="selectedGroups.length === 0 || !firmwareUpdateUrl">Firmware update</button>                     
         <button @click="$emit('close')">Close</button>
       </div>
@@ -81,7 +70,6 @@ export default {
       audioUrl: '',
       playlistId: '',
       firmwareUpdateUrl: '',
-      ntpServer: '',
     };
   },
   computed: {
@@ -167,23 +155,6 @@ export default {
         }
       }
 
-    },
-    async sendNtpForGroups() {
-      if (!this.ntpServer) return;
-
-      const encodedServer = encodeURIComponent(this.ntpServer);
-      for (const device of this.getTargetDevices()) {
-        if (!device.available) continue;
-        try {
-          const response = await fetch(`http://localhost:3000/proxy/${device.ip}/ntp?server=${encodedServer}`);
-          if (!response.ok) {
-            const text = await response.text();
-            console.warn(`NTP failed on ${device.ip}: ${response.status} ${text}`);
-          }
-        } catch (err) {
-          console.warn(`NTP failed on ${device.ip}`, err);
-        }
-      }
     },
     async sendFirmwareUpdateForGroups() {
       if (!this.firmwareUpdateUrl.startsWith('http://')) {

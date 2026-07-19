@@ -40,6 +40,9 @@
           <button @click="toggleSetPlaylistInline" :class="{ active: showSetPlaylistInline }">
             Set Playlist URL(selected)
           </button>
+          <button @click="toggleFirmwareUpdateInline" :class="{ active: showFirmwareUpdateInline }">
+            Firmware update (selected)
+          </button>
           <button
             v-for="group in deviceGroups"
             :key="group"
@@ -69,6 +72,17 @@
           </select>
           <button @click="sendPlaylistToSelected" :disabled="!selectedPlaylistId || !selectedDevice">Send</button>
           <button @click="showSetPlaylistInline = false">Close</button>
+        </div>
+        <div v-if="showFirmwareUpdateInline" class="submenu inline-audio-panel">
+          <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
+          <input
+            v-model.trim="firmwareUpdateUrl"
+            class="inline-audio-input"
+            type="text"
+            placeholder="http://server/audio3.bin"
+          />
+          <button @click="sendFirmwareUpdateToSelected" :disabled="!firmwareUpdateUrl || !selectedDevice">Update</button>
+          <button @click="showFirmwareUpdateInline = false">Close</button>
         </div>
         <div class="main-content split">
           <div class="left-pane">
@@ -100,6 +114,9 @@
                   &nbsp; | &nbsp; <strong>WiFi:</strong> {{ wifiSignalLabel(device) }}
                   &nbsp; | &nbsp; <strong>Audio:</strong> {{ playbackStateLabel(device) }}
                   &nbsp; | &nbsp; <strong>Now playing:</strong> {{ nowPlayingLabel(device) }}
+                  &nbsp; | &nbsp; <strong>Firmware:</strong> {{ firmwareLabel(device) }}
+                  &nbsp; | &nbsp; <strong>NTP:</strong> {{ ntpLabel(device) }}
+                  &nbsp; | &nbsp; <strong>Time:</strong> {{ timeLabel(device) }}
                 </p>
               </div>
             </div>
@@ -383,6 +400,8 @@ export default {
       schedulerPlaylists: [],
       showSetPlaylistInline: false,
       selectedPlaylistId: '',
+      showFirmwareUpdateInline: false,
+      firmwareUpdateUrl: '',
       schedulerInterval: null,
       schedulerCheckRunning: false,
       executedScheduledEvents: new Set(),
@@ -485,7 +504,14 @@ export default {
         this.nowPlayingLabel(device),
         device.wifiRssi,
         device.audioPlaybackState,
-        device.audioNowPlaying
+        device.audioNowPlaying,
+        device.firmwareVersion,
+        device.firmwareStatus,
+        device.firmwareProgress,
+        device.ntpServer,
+        this.ntpLabel(device),
+        device.moduleTime,
+        this.timeLabel(device)
       ]
         .filter(value => value !== null && value !== undefined)
         .some(value => String(value).toLowerCase().includes(query));
@@ -574,16 +600,74 @@ export default {
         device.audioPlaybackState = '';
         device.audioNowPlaying = '';
         device.audioNowPlayingUrl = '';
+        device.firmwareStatus = '';
+        device.firmwareProgress = null;
+        device.ntpServer = '';
+        device.moduleTime = '';
         return;
       }
 
       const audio = status.audio || status.playback || {};
       const wifi = status.wifi || {};
+      const firmware = status.firmware || {};
+      const ntp = status.ntp || {};
       device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
       device.wifiSsid = wifi.ssid ?? status.wifiSsid ?? '';
       device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
       device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
       device.audioNowPlayingUrl = audio.url || status.audioUrl || status.url || '';
+      device.firmwareVersion = firmware.version || status.firmwareVersion || device.firmwareVersion || '';
+      device.firmwareStatus = firmware.status || status.firmwareStatus || '';
+      device.firmwareProgress = firmware.progress ?? status.firmwareProgress ?? null;
+      device.firmwareUpdating = firmware.updating ?? status.firmwareUpdating ?? false;
+      device.ntpServer = ntp.server || status.ntpServer || '';
+      device.moduleTime = ntp.time || status.time || status.moduleTime || '';
+    },
+
+    ntpLabel(device) {
+      if (!device.available) return 'Offline';
+      return device.ntpServer || '—';
+    },
+
+    timeLabel(device) {
+      if (!device.available) return 'Offline';
+       const full = String(device.moduleTime || '').trim();
+      if (!full) return '—';
+      // Module sends "YYYY-MM-DD HH:MM:SS"; show only HH:MM on the card
+      const match = full.match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
+      if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
+      return full;
+    },
+
+    firmwareLabel(device) {
+      if (!device.available) return 'Offline';
+      const version = device.firmwareVersion || '—';
+      const status = String(device.firmwareStatus || '').toUpperCase();
+      const progress = Number(device.firmwareProgress);
+
+      if ((status === 'UPDATING' || status === 'OTA_START') && Number.isFinite(progress)) {
+        return `${progress}%:${version}`;
+      }
+
+      if (status.startsWith('OTA_')) {
+        const otaValue = status.slice(4);
+        if (/^\d+$/.test(otaValue)) {
+          return `${otaValue}%:${version}`;
+        }
+        if (otaValue === 'OK') {
+          return `OK:${version}`;
+        }
+        if (otaValue.startsWith('ERROR')) {
+          return `${status}:${version}`;
+        }
+      }
+
+      if (status.startsWith('ERROR')) {
+        return `${status}:${version}`;
+      }
+
+      return `OK:${version}`;
+
     },
 
     wifiSignalLabel(device) {
@@ -1073,12 +1157,25 @@ export default {
       }
       this.showSetPlaylistInline = !this.showSetPlaylistInline;
       if (this.showSetPlaylistInline) {
+        this.showFirmwareUpdateInline = false;
         await this.loadSchedulerPresets();
         if (!this.schedulerPlaylists.some(playlist => playlist.id === this.selectedPlaylistId)) {
           this.selectedPlaylistId = '';
         }
       }
-    },    
+    },
+
+    toggleFirmwareUpdateInline() {
+      if (!this.selectedDevice) {
+        this.showNotification('Select a module first in Control tab.');
+        return;
+      }
+      this.showFirmwareUpdateInline = !this.showFirmwareUpdateInline;
+      if (this.showFirmwareUpdateInline) {
+        this.showSetAudioInline = false;
+        this.showSetPlaylistInline = false;
+      }
+    },   
 
     async loadSchedulerPresets() {
       try {
@@ -1138,6 +1235,38 @@ export default {
       } catch (err) {
         console.error('Failed to send playlist to selected module:', err);
         this.showNotification(`❌ Failed to send playlist: ${err.message}`);
+      }
+    },
+
+    async sendFirmwareUpdateToSelected() {
+      if (!this.selectedDevice || !this.firmwareUpdateUrl) return;
+
+      if (!this.firmwareUpdateUrl.startsWith('http://')) {
+        this.showNotification('❌ Firmware URL must start with http://');
+        return;
+      }
+
+      try {
+        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/firmware/update`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: this.firmwareUpdateUrl,
+          }),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`HTTP ${response.status}: ${text}`);
+        }
+        this.selectedDevice.firmwareStatus = 'OTA_START';
+        this.selectedDevice.firmwareProgress = 0;
+        this.showNotification(`✅ Firmware update started for ${this.selectedDevice.name || this.selectedDevice.ip}`);
+        this.showFirmwareUpdateInline = false;
+      } catch (err) {
+        console.error('Failed to start firmware update for selected module:', err);
+        this.showNotification(`❌ Failed to start firmware update: ${err.message}`);
       }
     },
 
