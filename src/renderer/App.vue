@@ -31,7 +31,7 @@
           >
             No Group ({{ groupCounts.NoGroup }})
           </button>
-          <button @click="openGroupControl">
+          <button @click="openGroupControl" :class="{ active: showGroupControlDialog }">
             Group Control
           </button>
           <button @click="toggleSetAudioInline" :class="{ active: showSetAudioInline }">
@@ -123,8 +123,17 @@
           </div>
 
           <div class="right-pane">
+            <GroupControlDialog
+              v-if="showGroupControlDialog"
+              :devices="devices"
+              :allGroups="allGroups"
+              :audioUrls="schedulerAudioUrls"
+              :playlists="schedulerPlaylists"
+              @notify="showNotification"
+              @close="closeGroupControl"
+            />
             <iframe
-              v-if="selectedDevice"
+              v-else-if="selectedDevice"
               class="device-webview"
               :src="webviewUrl"
               frameborder="0"
@@ -315,15 +324,7 @@
         </div>
       </div>
     </div>
-
-    <GroupControlDialog
-      v-if="showGroupControlDialog"
-      :devices="devices"
-      :allGroups="allGroups"
-      :audioUrls="schedulerAudioUrls"
-      :playlists="schedulerPlaylists"
-      @close="closeGroupControl"
-    />
+    
     <div v-if="showToast" class="toast">
       {{ toastMessage }}
     </div>
@@ -999,6 +1000,7 @@ export default {
 
     selectDevice(device) {
       this.selectedDevice = device
+      this.showGroupControlDialog = false
     },
     loadAllDevices() {
       this.selectedGroup = 'All';
@@ -1128,9 +1130,11 @@ export default {
         await this.loadDevices()   // ✅ вот так подтягивает новые устройства сразу
       }
     },
-    openGroupControl() {
-      this.showGroupControlDialog = true;
-      this.loadSchedulerPresets();
+    async openGroupControl() {
+      this.showGroupControlDialog = !this.showGroupControlDialog;
+      if (this.showGroupControlDialog) {
+        await this.loadSchedulerPresets();
+      }
     },
     closeGroupControl() {
       this.showGroupControlDialog = false;
