@@ -73,9 +73,9 @@
 
     <!-- Управление -->
     <div class="actions">        
-        <button @click="sendAudioCommandForGroups('play')" :disabled="selectedGroups.length === 0">Play</button>
-        <button @click="sendAudioCommandForGroups('pause')" :disabled="selectedGroups.length === 0">Pause</button>
-        <button @click="sendAudioCommandForGroups('reboot')" :disabled="selectedGroups.length === 0">Reboot</button>                             
+        <button @click="sendAudioCommandForGroups('play')">Play</button>
+        <button @click="sendAudioCommandForGroups('pause')">Pause</button>
+        <button @click="sendAudioCommandForGroups('reboot')">Reboot</button>                            
         <button @click="$emit('close')">Close</button>
     </div>
   </section>
@@ -197,17 +197,40 @@ export default {
       }
     },
     async sendAudioCommandForGroups(command) {
-      for (const device of this.getTargetDevices()) {
+      const commandLabels = {
+        play: 'Play',
+        pause: 'Pause',
+        reboot: 'Reboot',
+      };
+      const commandLabel = commandLabels[command] || command;
+      const targetDevices = this.getTargetDevices();
+      if (targetDevices.length === 0) {
+        this.notify('⚠️ No target groups selected.');
+        return;
+      }
+
+      let sentCount = 0;
+      let failedCount = 0;
+      for (const device of targetDevices) {
         if (!device.available) continue;
         try {
           const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/${command}`);
           if (!response.ok) {
             const text = await response.text();
+            failedCount += 1;
             console.warn(`Audio ${command} failed on ${device.ip}: ${response.status} ${text}`);
+            } else {
+            sentCount += 1;
           }
         } catch (err) {
+          failedCount += 1;
           console.warn(`Audio ${command} failed on ${device.ip}`, err);
         }
+      }
+      if (sentCount > 0) {
+        this.notify(`✅ ${commandLabel} command sent to ${sentCount} group module(s).${failedCount ? ` Failed: ${failedCount}.` : ''}`);
+      } else {
+        this.notify(`❌ Failed to send ${commandLabel.toLowerCase()} command.${failedCount ? ` Failed: ${failedCount}.` : ' No online target modules.'}`);
       }
 
     },
