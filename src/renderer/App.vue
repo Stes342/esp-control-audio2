@@ -5,7 +5,15 @@
       <button @click="activeTab = 'control'" :class="{ active: activeTab === 'control' }">Control</button>
       <button @click="activeTab = 'manage'" :class="{ active: activeTab === 'manage' }">Manage</button>
       <button @click="activeTab = 'settings'" :class="{ active: activeTab === 'settings' }">Settings</button>
-      <input type="text" v-model="searchQuery" placeholder="Search modules..." class="search-input" />
+      <div class="search-wrapper">
+        <input
+          type="text"
+          v-model="searchQuery"
+          placeholder="Search modules..."
+          class="search-input"
+        />
+        <span class="search-count" title="Matched modules">{{ searchResultCount }}</span>
+      </div>
     </header>
 
     <!-- Tab Panels -->
@@ -43,6 +51,9 @@
           <button @click="toggleFirmwareUpdateInline" :class="{ active: showFirmwareUpdateInline }">
             Firmware update (selected)
           </button>
+          <button @click="toggleWorkTimeInline" :class="{ active: showWorkTimeInline }">
+            Work time (selected)
+          </button>
           <button
             v-for="group in deviceGroups"
             :key="group"
@@ -72,6 +83,16 @@
           </select>
           <button @click="sendPlaylistToSelected" :disabled="!selectedPlaylistId || !selectedDevice">Send</button>
           <button @click="showSetPlaylistInline = false">Close</button>
+        </div>
+        <div v-if="showWorkTimeInline" class="submenu inline-audio-panel">
+          <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
+          <label class="inline-check">
+            <input type="checkbox" v-model="workTimeEnabled" /> Enable protection
+          </label>
+          <label>Start: <input v-model="workTimeStart" class="inline-time-input" type="time" /></label>
+          <label>End: <input v-model="workTimeEnd" class="inline-time-input" type="time" /></label>
+          <button @click="sendWorkTimeToSelected" :disabled="!selectedDevice || (workTimeEnabled && (!workTimeStart || !workTimeEnd))">Save</button>
+          <button @click="showWorkTimeInline = false">Close</button>
         </div>
         <div v-if="showFirmwareUpdateInline" class="submenu inline-audio-panel">
           <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
@@ -117,6 +138,7 @@
                   &nbsp; | &nbsp; <strong>Firmware:</strong> {{ firmwareLabel(device) }}
                   &nbsp; | &nbsp; <strong>NTP:</strong> {{ ntpLabel(device) }}
                   &nbsp; | &nbsp; <strong>Time:</strong> {{ timeLabel(device) }}
+                  &nbsp; | &nbsp; <strong>Work time:</strong> {{ workTimeLabel(device) }}
                 </p>
               </div>
             </div>
@@ -403,6 +425,10 @@ export default {
       selectedPlaylistId: '',
       showFirmwareUpdateInline: false,
       firmwareUpdateUrl: '',
+      showWorkTimeInline: false,
+      workTimeEnabled: true,
+      workTimeStart: '08:00',
+      workTimeEnd: '21:00',
       schedulerInterval: null,
       schedulerCheckRunning: false,
       executedScheduledEvents: new Set(),
@@ -461,6 +487,10 @@ export default {
         })
         .filter(device => this.deviceMatchesSearch(device));
     },
+    searchResultCount() {
+      if (this.activeTab === 'manage') return this.filteredManageDevices.length;
+      return this.filteredDevices.length;
+    },
     selectedDevices() {
       // Возвращает объекты устройств, которые выбраны
       return this.devices.filter(d => this.checkedDevices.includes(d.mac))
@@ -512,7 +542,12 @@ export default {
         device.ntpServer,
         this.ntpLabel(device),
         device.moduleTime,
-        this.timeLabel(device)
+        this.timeLabel(device),
+        this.workTimeLabel(device),
+        device.audioWorkTimeEnabled,
+        device.audioWorkStart,
+        device.audioWorkEnd,
+        device.audioWorkAllowed
       ]
         .filter(value => value !== null && value !== undefined)
         .some(value => String(value).toLowerCase().includes(query));
@@ -617,6 +652,10 @@ export default {
       device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
       device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
       device.audioNowPlayingUrl = audio.url || status.audioUrl || status.url || '';
+      device.audioWorkTimeEnabled = audio.workTimeEnabled ?? status.audioWorkTimeEnabled ?? false;
+      device.audioWorkStart = audio.workStart || status.audioWorkStart || '';
+      device.audioWorkEnd = audio.workEnd || status.audioWorkEnd || '';
+      device.audioWorkAllowed = audio.workAllowed ?? status.audioWorkAllowed ?? true;
       device.firmwareVersion = firmware.version || status.firmwareVersion || device.firmwareVersion || '';
       device.firmwareStatus = firmware.status || status.firmwareStatus || '';
       device.firmwareProgress = firmware.progress ?? status.firmwareProgress ?? null;
@@ -638,6 +677,12 @@ export default {
       const match = full.match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
       if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
       return full;
+    },
+    workTimeLabel(device) {
+      if (!device.available) return 'Offline';
+      if (!device.audioWorkTimeEnabled) return 'Disabled';
+      const range = `${device.audioWorkStart || '08:00'}-${device.audioWorkEnd || '21:00'}`;
+      return device.audioWorkAllowed === false ? `Blocked (${range})` : `Allowed (${range})`;
     },
 
     firmwareLabel(device) {
@@ -1178,6 +1223,23 @@ export default {
       if (this.showFirmwareUpdateInline) {
         this.showSetAudioInline = false;
         this.showSetPlaylistInline = false;
+        this.showWorkTimeInline = false;
+      }
+    },
+
+    toggleWorkTimeInline() {
+      if (!this.selectedDevice) {
+        this.showNotification('Select a module first in Control tab.');
+        return;
+      }
+      this.showWorkTimeInline = !this.showWorkTimeInline;
+      if (this.showWorkTimeInline) {
+        this.showSetAudioInline = false;
+        this.showSetPlaylistInline = false;
+        this.showFirmwareUpdateInline = false;
+        this.workTimeEnabled = this.selectedDevice.audioWorkTimeEnabled !== false;
+        this.workTimeStart = this.selectedDevice.audioWorkStart || '08:00';
+        this.workTimeEnd = this.selectedDevice.audioWorkEnd || '21:00';
       }
     },   
 
@@ -1239,6 +1301,30 @@ export default {
       } catch (err) {
         console.error('Failed to send playlist to selected module:', err);
         this.showNotification(`❌ Failed to send playlist: ${err.message}`);
+      }
+    },
+
+    async sendWorkTimeToSelected() {
+      if (!this.selectedDevice) return;
+      const params = new URLSearchParams({
+        enabled: this.workTimeEnabled ? '1' : '0',
+        start: this.workTimeStart,
+        end: this.workTimeEnd,
+      });
+      try {
+        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/audio/worktime?${params.toString()}`);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`HTTP ${response.status}: ${text}`);
+        }
+        this.selectedDevice.audioWorkTimeEnabled = this.workTimeEnabled;
+        this.selectedDevice.audioWorkStart = this.workTimeStart;
+        this.selectedDevice.audioWorkEnd = this.workTimeEnd;
+        this.showNotification(`✅ Work time saved for ${this.selectedDevice.name || this.selectedDevice.ip}`);
+        this.showWorkTimeInline = false;
+      } catch (err) {
+        console.error('Failed to set work time for selected module:', err);
+        this.showNotification(`❌ Failed to save work time: ${err.message}`);
       }
     },
 
@@ -1486,6 +1572,16 @@ export default {
   gap: 8px;
   border-top: 1px solid #ddd;
 }
+.inline-time-input {
+  width: 90px;
+}
+
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .inline-audio-input {
   min-width: 320px;
   padding: 4px 6px;
@@ -1672,13 +1768,33 @@ main {
   border-color: #007bff;
 }
 
-.search-input {
-  margin-right: auto;
-  padding: 6px 12px;
-  font-size: 14px;
-  border-radius: 4px;
-  border: 1px solid #ccc;  
+.search-wrapper {
+  position: relative;
+  margin-right: auto;  
+  display: inline-flex;
+  align-items: center;
 }
+.search-input {
+  padding: 6px 48px 6px 12px;
+  font-size: 14px;
+  border-radius: 4px;   
+  border: 1px solid #ccc;
+}
+
+.search-count {
+  position: absolute;
+  right: 8px;
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #e9ecef;
+  color: #333;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  pointer-events: none;
+}
+
 
 .config-buttons {
   display: flex;

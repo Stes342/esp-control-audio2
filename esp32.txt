@@ -14,7 +14,7 @@
 const char* hostname = "audio-control";
 #define RELAY_COUNT 4
 const uint8_t RELAY_PINS[RELAY_COUNT] = {5, 6, 7, 15};
-// I2S DAC pins (ESP32-S3) 200726
+// I2S DAC pins (ESP32-S3)
 #define I2S_BCLK 5
 #define I2S_LRC  6
 #define I2S_DOUT 7
@@ -24,8 +24,9 @@ const uint8_t RELAY_PINS[RELAY_COUNT] = {5, 6, 7, 15};
 #define AUDIO_PLAYLIST_EARLY_END_GRACE_MS 8000
 #define AUDIO_PLAYLIST_STATE_CHECK_MS 200
 #define AUDIO_PLAYLIST_START_TIMEOUT_MS 12000
-#define FW_VERSION "1.0.1"
+#define FW_VERSION "1.0.2"
 #define OTA_PROGRESS_STEP 20
+#define AUDIO_WORK_TIME_CHECK_MS 60000
 unsigned long playlistStoppedAt = 0;
 unsigned long radioReconnectTimer = 0;
 bool otaInProgress = false;
@@ -85,6 +86,10 @@ String webLogin;
 String webPassword;
 String deviceName;
 String ntpServer = "";
+bool audioWorkTimeEnabled = false;
+int audioWorkStartMinute = 8 * 60;
+int audioWorkEndMinute = 21 * 60;
+unsigned long audioWorkTimeLastCheck = 0;
 
 WiFiManagerParameter custom_login("login", "Web Login", "admin", 32);
 WiFiManagerParameter custom_password("password", "Web Password", "12345678", 32);
@@ -249,6 +254,112 @@ bool connectToStation(const char* name, const char* url) {
   return audio.connecttohost(url);
 }
 
+String formatTimeMinutes(int totalMinutes) {
+  totalMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+  char buffer[6];
+  snprintf(buffer, sizeof(buffer), "%02d:%02d", totalMinutes / 60, totalMinutes % 60);
+  return String(buffer);
+}
+
+bool parseTimeMinutes(const String& value, int &minutes) {
+  if (value.length() != 5 || value.charAt(2) != ':') return false;
+  for (int i = 0; i < 5; i++) {
+    if (i == 2) continue;
+    if (!isDigit(value.charAt(i))) return false;
+  }
+  int hour = value.substring(0, 2).toInt();
+  int minute = value.substring(3, 5).toInt();
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return false;
+  minutes = hour * 60 + minute;
+  return true;
+}
+
+bool isAudioWorkTimeNow() {
+  if (!audioWorkTimeEnabled) return true;
+
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo, 0)) {
+    Serial.println("[audio] work time enabled, but local time is not synced; playback blocked");
+    return false;
+  }
+
+  int nowMinutes = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+  if (audioWorkStartMinute == audioWorkEndMinute) return true;
+  if (audioWorkStartMinute < audioWorkEndMinute) {
+    return nowMinutes >= audioWorkStartMinute && nowMinutes <= audioWorkEndMinute;
+  }
+  return nowMinutes >= audioWorkStartMinute || nowMinutes <= audioWorkEndMinute;
+}
+
+void stopAudioForWorkTime(const String& reason) {
+  Serial.println("[audio] playback blocked by work time: " + reason);
+  audio.stopSong();
+  isConnected = false;
+  isPaused = true;
+  playlistActive = false;
+  radioReconnectTimer = 0;
+}
+
+bool ensureAudioWorkTimeAllowed(bool sendResponse) {
+  if (isAudioWorkTimeNow()) return true;
+  stopAudioForWorkTime("outside allowed range " + formatTimeMinutes(audioWorkStartMinute) + "-" + formatTimeMinutes(audioWorkEndMinute));
+  if (sendResponse) {
+    server.send(403, "text/plain", "Playback blocked outside working time");
+  }
+  return false;
+}
+
+void enforceAudioWorkTime() {
+  if (!audioWorkTimeEnabled) return;
+  if (millis() - audioWorkTimeLastCheck < AUDIO_WORK_TIME_CHECK_MS) return;
+  audioWorkTimeLastCheck = millis();
+  if (!isPaused || isConnected || playlistActive) {
+    ensureAudioWorkTimeAllowed(false);
+  }
+}
+
+void loadAudioWorkTime() {
+  preferences.begin("audio", true);
+  audioWorkTimeEnabled = preferences.getBool("workEnabled", false);
+  audioWorkStartMinute = preferences.getInt("workStart", 8 * 60);
+  audioWorkEndMinute = preferences.getInt("workEnd", 21 * 60);
+  preferences.end();
+}
+
+void handleAudioWorkTime() {
+  String currentUser;
+  if (!checkAuth(currentUser)) return;
+  if (!isAdmin(currentUser)) {
+    server.send(403, "text/plain", "Forbidden: Admin only");
+    return;
+  }
+
+  bool newEnabled = !server.hasArg("enabled") || server.arg("enabled") != "0";
+  int newStart = audioWorkStartMinute;
+  int newEnd = audioWorkEndMinute;
+  if (newEnabled) {
+    if (!server.hasArg("start") || !server.hasArg("end")) {
+      server.send(400, "text/plain", "Missing start/end parameters");
+      return;
+    }
+    if (!parseTimeMinutes(server.arg("start"), newStart) || !parseTimeMinutes(server.arg("end"), newEnd)) {
+      server.send(400, "text/plain", "Invalid time format, use HH:MM");
+      return;
+    }
+  }
+
+  audioWorkTimeEnabled = newEnabled;
+  audioWorkStartMinute = newStart;
+  audioWorkEndMinute = newEnd;
+  preferences.begin("audio", false);
+  preferences.putBool("workEnabled", audioWorkTimeEnabled);
+  preferences.putInt("workStart", audioWorkStartMinute);
+  preferences.putInt("workEnd", audioWorkEndMinute);
+  preferences.end();
+  ensureAudioWorkTimeAllowed(false);
+  server.send(200, "text/plain", audioWorkTimeEnabled ? "OK" : "DISABLED");
+}
+
 String endpointNameFromUrl(const String& url) {
   int q = url.indexOf('?');
   String clean = (q >= 0) ? url.substring(0, q) : url;
@@ -269,6 +380,7 @@ void handleAudioChangeStation() {
     server.send(400, "text/plain", "Invalid station index");
     return;
   }
+  if (!ensureAudioWorkTimeAllowed(true)) return;
   currentStationIndex = newIndex;
   radioUrl = radioStations[currentStationIndex].url;
   isCustomStation = false;
@@ -297,6 +409,7 @@ void handleAudioCustomStation() {
     server.send(400, "text/plain", "Missing url parameter");
     return;
   }
+  if (!ensureAudioWorkTimeAllowed(true)) return;
   customStationUrl = server.arg("url");
   customStationName = server.hasArg("name") ? server.arg("name") : "Custom";
   if (customStationName.length() == 0) customStationName = "Custom";
@@ -304,8 +417,13 @@ void handleAudioCustomStation() {
   radioUrl = customStationUrl.c_str();
   audio.stopSong();
   delay(100);
-  isConnected = connectToStation(customStationName.c_str(), radioUrl);
-  isPaused = !isConnected;
+  if (isAudioWorkTimeNow()) {
+    isConnected = connectToStation(customStationName.c_str(), radioUrl);
+    isPaused = !isConnected;
+  } else {
+    isConnected = false;
+    isPaused = true;
+  }
   server.send(200, "text/plain", "OK");
 }
 
@@ -326,6 +444,7 @@ void handleAudioSetUrl() {
     server.send(400, "text/plain", "Invalid URL");
     return;
   }
+  if (!ensureAudioWorkTimeAllowed(true)) return;
   currentStreamUrl = newUrl;
   preferences.begin("audio", false);
   preferences.putString("streamUrl", currentStreamUrl);
@@ -365,6 +484,7 @@ bool startPlaylistItem(int index) {
   radioUrl = currentStreamUrl.c_str();
   isCustomStation = true;
   customStationName = endpointNameFromUrl(currentStreamUrl);
+  if (!ensureAudioWorkTimeAllowed(false)) return false;
 
   Serial.println("[audio] playlist item " + String(playlistIndex + 1) + "/" + String(playlistCount) + ": " + currentStreamUrl);
   audio.stopSong();
@@ -393,6 +513,7 @@ void finishAudioPlaylist() {
     Serial.println("[audio] returning to previous stream: " + currentStreamUrl);
     audio.stopSong();
     delay(100);
+    if (!ensureAudioWorkTimeAllowed(false)) return;
     isConnected = connectToStation(customStationName.c_str(), radioUrl);
     isPaused = !isConnected;
   } else {
@@ -604,6 +725,8 @@ void playNextPlaylistItem() {
   if (!playlistActive) return;
 
   int nextIndex = playlistIndex + 1;
+  if (!ensureAudioWorkTimeAllowed(false)) return;
+
   if (nextIndex < playlistCount) {
     startPlaylistItem(nextIndex);
   } else {
@@ -641,6 +764,8 @@ void handleAudioPlaylist() {
     server.send(400, "text/plain", "Too many urls");
     return;
   }
+
+  if (!ensureAudioWorkTimeAllowed(true)) return;
 
   resetAudioPlaylist();
   playlistPreviousStreamUrl = currentStreamUrl;
@@ -692,6 +817,8 @@ void handleAudioPlay() {
   if (currentStreamUrl.length() > 0) {
     radioUrl = currentStreamUrl.c_str();
   }
+
+  if (!ensureAudioWorkTimeAllowed(true)) return;
 
   if (radioUrl == nullptr || String(radioUrl).length() == 0) {
     Serial.println("[audio] play failed: missing URL");
@@ -1475,6 +1602,7 @@ void setup() {
   preferences.begin("audio", true);
   currentStreamUrl = preferences.getString("streamUrl", radioStations[currentStationIndex].url);
   preferences.end();
+  loadAudioWorkTime();
   radioUrl = currentStreamUrl.c_str();
   customStationName = endpointNameFromUrl(currentStreamUrl);
   isCustomStation = true;
@@ -1527,6 +1655,10 @@ void setup() {
     audioStatus["url"] = currentStreamUrl;
     audioStatus["volume"] = currentVolume;
     audioStatus["playlistActive"] = playlistActive;
+    audioStatus["workTimeEnabled"] = audioWorkTimeEnabled;
+    audioStatus["workStart"] = formatTimeMinutes(audioWorkStartMinute);
+    audioStatus["workEnd"] = formatTimeMinutes(audioWorkEndMinute);
+    audioStatus["workAllowed"] = isAudioWorkTimeNow();
     if (playlistActive) {
       audioStatus["playlistIndex"] = playlistIndex;
       audioStatus["playlistCount"] = playlistCount;
@@ -1636,6 +1768,7 @@ void setup() {
   server.on("/audio/pause", HTTP_GET, handleAudioPause);
   server.on("/audio/toggle", HTTP_GET, handleAudioToggle);
   server.on("/audio/reboot", HTTP_GET, handleAudioReboot);
+  server.on("/audio/worktime", HTTP_GET, handleAudioWorkTime);
   server.on("/ntp", HTTP_GET, handleSetNtp);
   server.begin();
 }
@@ -1647,13 +1780,15 @@ void loop() {
     Serial.println("WiFi not connected!");
     return;
   }
-  if (isConnected) {
+  enforceAudioWorkTime();
+  if (isConnected && isAudioWorkTimeNow()) {
     audio.loop();
   }  
   // Автоматическое восстановление интернет-радио
   if (!playlistActive &&
       !isPaused &&
       WiFi.status() == WL_CONNECTED &&
+      isAudioWorkTimeNow() &&
       !audio.isRunning()) {
 
       if (radioReconnectTimer == 0) {

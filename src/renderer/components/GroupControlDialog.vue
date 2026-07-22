@@ -37,7 +37,19 @@
         placeholder="http://server/audio3.bin"
       />      
       <button @click="sendFirmwareUpdateForGroups" :disabled="!firmwareUpdateUrl">Firmware update</button>
-    </div>          
+    </div>
+    
+    <div class="control-row">
+      <label class="control-label" for="group-work-time-enabled">Work time:</label>
+      <div class="control-input control-work-time-input">
+        <label class="control-check">
+          <input id="group-work-time-enabled" type="checkbox" v-model="workTimeEnabled" /> Enabled
+        </label>
+        <label class="control-time-field">Start: <input v-model="workTimeStart" class="control-time-input" type="time" /></label>
+        <label class="control-time-field">End: <input v-model="workTimeEnd" class="control-time-input" type="time" /></label>
+      </div>
+      <button @click="sendWorkTimeForGroups" :disabled="workTimeEnabled && (!workTimeStart || !workTimeEnd)">Set work time</button>
+    </div>
 
     <div class="control-row">
       <label class="control-label" for="group-ntp-server">NTP Server:</label>
@@ -80,6 +92,9 @@ export default {
       playlistId: '',
       firmwareUpdateUrl: '',
       ntpServer: '',
+      workTimeEnabled: true,
+      workTimeStart: '08:00',
+      workTimeEnd: '21:00',
     };
   },
   computed: {
@@ -196,6 +211,43 @@ export default {
       }
 
     },
+
+    async sendWorkTimeForGroups() {
+      const targetDevices = this.getTargetDevices();
+      if (targetDevices.length === 0) {
+        this.notify('⚠️ No target groups selected.');
+        return;
+      }
+      const params = new URLSearchParams({
+        enabled: this.workTimeEnabled ? '1' : '0',
+        start: this.workTimeStart,
+        end: this.workTimeEnd,
+      });
+      let sentCount = 0;
+      let failedCount = 0;
+      for (const device of targetDevices) {
+        if (!device.available) continue;
+        try {
+          const response = await fetch(`http://localhost:3000/proxy/${device.ip}/audio/worktime?${params.toString()}`);
+          if (!response.ok) {
+            const text = await response.text();
+            failedCount += 1;
+            console.warn(`Work time failed on ${device.ip}: ${response.status} ${text}`);
+          } else {
+            sentCount += 1;
+          }
+        } catch (err) {
+          failedCount += 1;
+          console.warn(`Work time failed on ${device.ip}`, err);
+        }
+      }
+      if (sentCount > 0) {
+        this.notify(`✅ Work time sent to ${sentCount} group module(s).${failedCount ? ` Failed: ${failedCount}.` : ''}`);
+      } else {
+        this.notify(`❌ Failed to send work time.${failedCount ? ` Failed: ${failedCount}.` : ' No online target modules.'}`);
+      }
+    },
+
     async sendNtpForGroups() {
       if (!this.ntpServer) return;
       const targetDevices = this.getTargetDevices();
@@ -306,6 +358,21 @@ export default {
   max-width: 520px;
   box-sizing: border-box;
 }
+.control-work-time-input {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.control-time-input {
+  width: 90px;
+}
+.control-check,
+.control-time-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 0;
+}
 .control-row button {
   flex: 0 0 auto;
   background: #007bff;
@@ -346,4 +413,3 @@ h5 {
   
 }
 </style>
-
