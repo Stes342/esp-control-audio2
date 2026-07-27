@@ -9,7 +9,7 @@
         <input
           type="text"
           v-model="searchQuery"
-          placeholder="Search modules..."
+          placeholder="Search..."
           class="search-input"
         />
         <span class="search-count" title="Matched modules">{{ searchResultCount }}</span>
@@ -42,17 +42,8 @@
           <button @click="openGroupControl" :class="{ active: showGroupControlDialog }">
             Group Control
           </button>
-          <button @click="toggleSetAudioInline" :class="{ active: showSetAudioInline }">
-            Set Stream URL (selected)
-          </button>
-          <button @click="toggleSetPlaylistInline" :class="{ active: showSetPlaylistInline }">
-            Set Playlist URL(selected)
-          </button>
-          <button @click="toggleFirmwareUpdateInline" :class="{ active: showFirmwareUpdateInline }">
-            Firmware update (selected)
-          </button>
-          <button @click="toggleWorkTimeInline" :class="{ active: showWorkTimeInline }">
-            Work time (selected)
+          <button @click="openSingleModuleControl" :class="{ active: showSingleModuleControlDialog }">
+            Single module control
           </button>
           <button
             v-for="group in deviceGroups"
@@ -62,49 +53,7 @@
           >
             {{ group }} ({{ groupCounts[group] || 0 }})
           </button>
-        </div>
-        <div v-if="showSetAudioInline" class="submenu inline-audio-panel">
-          <select v-model="selectedAudioUrl" class="inline-audio-input">
-            <option value="" disabled>Select saved stream...</option>
-            <option v-for="preset in schedulerAudioUrls" :key="preset.id" :value="preset.url">
-              {{ preset.name }} — {{ preset.url }}
-            </option>
-          </select>
-          <button @click="sendAudioUrlToSelected" :disabled="!selectedAudioUrl || !selectedDevice">Send</button>
-          <button @click="showSetAudioInline = false">Close</button>
-        </div>
-        <div v-if="showSetPlaylistInline" class="submenu inline-audio-panel">
-          <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
-          <select v-model="selectedPlaylistId" class="inline-audio-input">
-            <option value="" disabled>Select saved playlist...</option>
-            <option v-for="playlist in schedulerPlaylists" :key="playlist.id" :value="playlist.id">
-              {{ playlist.name }} — {{ playlist.urls?.length || 0 }} URLs
-            </option>
-          </select>
-          <button @click="sendPlaylistToSelected" :disabled="!selectedPlaylistId || !selectedDevice">Send</button>
-          <button @click="showSetPlaylistInline = false">Close</button>
-        </div>
-        <div v-if="showWorkTimeInline" class="submenu inline-audio-panel">
-          <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
-          <label class="inline-check">
-            <input type="checkbox" v-model="workTimeEnabled" /> Enable protection
-          </label>
-          <label>Start: <input v-model="workTimeStart" class="inline-time-input" type="time" /></label>
-          <label>End: <input v-model="workTimeEnd" class="inline-time-input" type="time" /></label>
-          <button @click="sendWorkTimeToSelected" :disabled="!selectedDevice || (workTimeEnabled && (!workTimeStart || !workTimeEnd))">Save</button>
-          <button @click="showWorkTimeInline = false">Close</button>
-        </div>
-        <div v-if="showFirmwareUpdateInline" class="submenu inline-audio-panel">
-          <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
-          <input
-            v-model.trim="firmwareUpdateUrl"
-            class="inline-audio-input"
-            type="text"
-            placeholder="http://server/audio3.bin"
-          />
-          <button @click="sendFirmwareUpdateToSelected" :disabled="!firmwareUpdateUrl || !selectedDevice">Update</button>
-          <button @click="showFirmwareUpdateInline = false">Close</button>
-        </div>
+        </div>        
         <div class="main-content split">
           <div class="left-pane">
             <div class="device-list">
@@ -153,6 +102,14 @@
               :playlists="schedulerPlaylists"
               @notify="showNotification"
               @close="closeGroupControl"
+            />
+            <SingleModuleControlDialog
+              v-else-if="showSingleModuleControlDialog"
+              :selectedDevice="selectedDevice"
+              :audioUrls="schedulerAudioUrls"
+              :playlists="schedulerPlaylists"
+              @notify="showNotification"
+              @close="closeSingleModuleControl"
             />
             <iframe
               v-else-if="selectedDevice"
@@ -205,12 +162,15 @@
                   <h4>{{ device.name }}</h4>
                   <input type="checkbox" v-model="checkedDevices" :value="device.mac" />
                 </div>
-                <p class="secondary-info">
-                  <strong>IP:</strong> {{ device.ip }} | <strong>MAC:</strong> {{ device.mac }} <br> <strong>Login:</strong> {{ device.login || '—' }} | <strong>Group:</strong> {{ device.group }}
-                </p>
-                <div class="card-actions">
-                  <button @click="openLogPass(device)">Log\Pass</button>
-                  <button @click="removeDevice(device)">Delete</button>
+                <div class="secondary-info manage-card-row">
+                  <span><strong>IP:</strong> {{ device.ip }}</span>
+                  <span><strong>MAC:</strong> {{ device.mac }}</span>
+                  <span><strong>Login:</strong> {{ device.login || '—' }}</span>
+                  <span><strong>Group:</strong> {{ device.group || '—' }}</span>
+                  <div class="card-actions manage-card-actions">
+                    <button @click="openLogPass(device)">Log\Pass</button>
+                    <button @click="removeDevice(device)">Delete</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -372,6 +332,7 @@ import UsersPassCheckedDialog from './components/UsersPassCheckedDialog.vue';
 import UserAccessDialog from './components/UserAccessDialog.vue';
 import GroupDialog from './components/GroupDialog.vue';
 import GroupControlDialog from './components/GroupControlDialog.vue';
+import SingleModuleControlDialog from './components/SingleModuleControlDialog.vue';
 import SchedulerPanel from './components/SchedulerPanel.vue';
 
 const SCHEDULER_FALLBACK_KEY = 'espControlScheduler';
@@ -386,6 +347,7 @@ export default {
     UserAccessDialog,
     GroupDialog,
     GroupControlDialog,
+    SingleModuleControlDialog,
     SchedulerPanel,    
   },
   data() {
@@ -412,6 +374,7 @@ export default {
       groupAction: '', // 'new' | 'delete' | 'assign' | 'remove'
       availableGroups: [], // берём из storageAPI при загрузке 
       showGroupControlDialog: false,
+      showSingleModuleControlDialog: false,
       selectedGroups: [],
       relayCount: 4,
       selectedRelays: [],
@@ -1044,8 +1007,7 @@ export default {
     },
 
     selectDevice(device) {
-      this.selectedDevice = device
-      this.showGroupControlDialog = false
+      this.selectedDevice = device      
     },
     loadAllDevices() {
       this.selectedGroup = 'All';
@@ -1178,11 +1140,26 @@ export default {
     async openGroupControl() {
       this.showGroupControlDialog = !this.showGroupControlDialog;
       if (this.showGroupControlDialog) {
+        this.showSingleModuleControlDialog = false;
         await this.loadSchedulerPresets();
       }
     },
     closeGroupControl() {
       this.showGroupControlDialog = false;
+    },
+    async openSingleModuleControl() {
+      if (!this.selectedDevice) {
+        this.showNotification('Select a module first in Control tab.');
+        return;
+      }
+      this.showSingleModuleControlDialog = !this.showSingleModuleControlDialog;
+      if (this.showSingleModuleControlDialog) {
+        this.showGroupControlDialog = false;
+        await this.loadSchedulerPresets();
+      }
+    },
+    closeSingleModuleControl() {
+      this.showSingleModuleControlDialog = false;
     },
 
     async toggleSetAudioInline() {
@@ -1614,7 +1591,7 @@ main {
 
 /* Левая панель с карточками */
 .left-pane {
-  flex: 1;
+  flex: 1 1 63%;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1624,7 +1601,8 @@ main {
 
 /* Правая панель с WebView */
 .right-pane {
-  flex: 2;
+  flex: 0 1 37%;
+  min-width: 560px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1727,6 +1705,19 @@ main {
   margin-top: 8px;
   display: flex;
   gap: 8px;
+}
+.manage-card-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.manage-card-actions {
+  margin-top: 0;
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 .card-actions button {
   background: #007bff;

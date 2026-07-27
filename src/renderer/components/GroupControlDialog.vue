@@ -13,7 +13,7 @@
           {{ preset.name }} — {{ preset.url }}
         </option>
       </select>
-      <button @click="setAudioUrlForGroups" :disabled="!audioUrl">Set stream URL</button>
+      <button @click="setAudioUrlForGroups" :disabled="!audioUrl">Set</button>
     </div>
 
     <div class="control-row">
@@ -24,7 +24,7 @@
           {{ playlist.name }} — {{ playlist.urls?.length || 0 }} URLs
         </option>
       </select>
-      <button @click="sendPlaylistForGroups" :disabled="!playlistId">Send Playlist</button>
+      <button @click="sendPlaylistForGroups" :disabled="!playlistId">Set</button>
     </div>
     
     <div class="control-row">
@@ -36,7 +36,7 @@
         type="text"
         placeholder="http://server/audio3.bin"
       />      
-      <button @click="sendFirmwareUpdateForGroups" :disabled="!firmwareUpdateUrl">Firmware update</button>
+      <button @click="sendFirmwareUpdateForGroups" :disabled="!firmwareUpdateUrl">Set</button>
     </div>
     
     <div class="control-row">
@@ -48,7 +48,7 @@
         <label class="control-time-field">Start: <input v-model="workTimeStart" class="control-time-input" type="time" /></label>
         <label class="control-time-field">End: <input v-model="workTimeEnd" class="control-time-input" type="time" /></label>
       </div>
-      <button @click="sendWorkTimeForGroups" :disabled="workTimeEnabled && (!workTimeStart || !workTimeEnd)">Set work time</button>
+      <button @click="sendWorkTimeForGroups" :disabled="workTimeEnabled && (!workTimeStart || !workTimeEnd)">Set</button>
     </div>
 
     <div class="control-row">
@@ -60,7 +60,7 @@
         type="text"
         placeholder="pool.ntp.org"
       />
-      <button @click="sendNtpForGroups" :disabled="!ntpServer">Set NTP</button>
+      <button @click="sendNtpForGroups" :disabled="!ntpServer">Set</button>
     </div>
       
     <!-- Выбор групп -->
