@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld('storageAPI', {
   getGroups: () => ipcRenderer.invoke('loadGroups'),   
   setGroups: (groups) => ipcRenderer.invoke('saveGroups', groups),
   loadScheduler: () => ipcRenderer.invoke('loadScheduler'),
-  saveScheduler: (scheduler) => ipcRenderer.invoke('saveScheduler', scheduler)
+  saveScheduler: (scheduler) => ipcRenderer.invoke('saveScheduler', scheduler),
+  loadLog: () => ipcRenderer.invoke('loadLog'),
+  appendLog: (entry) => ipcRenderer.invoke('appendLog', entry)
 });

@@ -4,7 +4,7 @@
     <header class="top-nav">
       <button @click="activeTab = 'control'" :class="{ active: activeTab === 'control' }">Control</button>
       <button @click="activeTab = 'manage'" :class="{ active: activeTab === 'manage' }">Manage</button>
-      <button @click="activeTab = 'settings'" :class="{ active: activeTab === 'settings' }">Settings</button>
+      <button @click="openSettingsTab" :class="{ active: activeTab === 'settings' }">Settings</button>
       <div class="search-wrapper">
         <input
           type="text"
@@ -101,6 +101,7 @@
               :audioUrls="schedulerAudioUrls"
               :playlists="schedulerPlaylists"
               @notify="showNotification"
+              @log="addLog"
               @close="closeGroupControl"
             />
             <SingleModuleControlDialog
@@ -109,6 +110,7 @@
               :audioUrls="schedulerAudioUrls"
               :playlists="schedulerPlaylists"
               @notify="showNotification"
+              @log="addLog"
               @close="closeSingleModuleControl"
             />
             <iframe
@@ -142,9 +144,9 @@
           <button @click="openSetUsersForChecked" :disabled="checkedDevices.length === 0">Log\Pass (Users) on module</button>
           <!-- <button @click="showUserAccessDialog = true" :disabled="checkedDevices.length === 0">User Access on module</button> -->
           <button @click="toggleCheckAll">{{ isAllChecked ? 'Uncheck All' : 'Check All' }}</button>
-          <button @click="showAddDialog = true">Add by IP</button>          
+          <button @click="openAddDialog">Add by IP</button>         
           <button @click="toggleGroupsPanel">Groups</button>
-          <button @click="showSchedulerPanel = !showSchedulerPanel; showGroupsPanel = false">Scheduler</button>
+          <button @click="toggleSchedulerPanel">Scheduler</button>
         </div>
 
         <div class="main-content split">
@@ -180,6 +182,7 @@
               v-if="showSchedulerPanel"
               :devices="devices"
               :allGroups="allGroups"
+              @log="addLog"
             />
             <div v-else-if="showGroupsPanel">
               <div class="group-controls">
@@ -220,6 +223,21 @@
       <!-- Settings Tab -->
       <div v-else-if="activeTab === 'settings'" class="tab-content">
         <div class="submenu">
+          <button
+            :class="{ active: selectedSettingsPanel === 'config' }"
+            @click="selectedSettingsPanel = 'config'"
+          >
+            Config
+          </button>
+          <button
+            :class="{ active: selectedSettingsPanel === 'log' }"
+            @click="selectedSettingsPanel = 'log'"
+          >
+            Log
+          </button>
+        </div>
+
+        <div v-if="selectedSettingsPanel === 'config'" class="settings-panel">
           <h2>Config</h2>
 
           <div class="config-buttons">
@@ -245,6 +263,16 @@
               <p class="config-description">
                 Import configuration from a JSON file. Legacy device-array exports are still supported; files with groups and Scheduler data restore those sections too.
               </p>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="selectedSettingsPanel === 'log'" class="settings-panel">
+          <h2>Log</h2>
+          <div v-if="appLog.length === 0" class="log-empty">No log records.</div>
+          <div v-else class="log-list">
+            <div v-for="entry in appLog" :key="entry.id" class="log-entry">
+              <span class="log-time">{{ entry.time }}</span>
+              <span class="log-message">{{ entry.message }}</span>
             </div>
           </div>
         </div>
@@ -354,6 +382,7 @@ export default {
     return {
       activeTab: 'control',
       selectedGroup: 'All',
+      selectedSettingsPanel: 'config',
       selectedDevice: null,
       devices: [],
       checkInterval: null,  // ✅ добавлено
@@ -388,6 +417,7 @@ export default {
       selectedPlaylistId: '',
       showFirmwareUpdateInline: false,
       firmwareUpdateUrl: '',
+      appLog: [],
       showWorkTimeInline: false,
       workTimeEnabled: true,
       workTimeStart: '08:00',
@@ -977,6 +1007,7 @@ export default {
     },
 
     async removeDevice(device) {
+      this.addLog(`Manage: Delete module ${this.deviceLabel(device)} (${device.mac})`);
       console.log('Removing device with MAC:', device.mac);
       await window.storageAPI.removeModule?.(device.mac);
       await this.loadDevices(); // перезагружаешь из JSON
@@ -984,6 +1015,7 @@ export default {
     },
 
     removeChecked() {
+      this.addLog(`Manage: Delete selected modules (${this.checkedDevices.length})`);
       this.confirmMessage =
         'Are you sure you want to remove the selected devices?';
 
@@ -1016,6 +1048,7 @@ export default {
 
     
     openLogPass(device) {
+      this.addLog(`Manage: Log\\Pass for ${this.deviceLabel(device)}`);
       this.showNotification(`Open Log\\Pass for ${device.name}`)
     },
 
@@ -1024,11 +1057,13 @@ export default {
       this.showLogPassDialog = true;
     },
     openLogPassChecked() {
-    if (this.checkedDevices.length === 0) return;
+      if (this.checkedDevices.length === 0) return;
+      this.addLog(`Manage: Log\\Pass for selected modules (${this.checkedDevices.length})`);
       this.logPassCheckedDevices = [...this.checkedDevices]; // сохраняешь MAC-адреса
       this.showLogPassCheckedDialog = true;
     },
     openSetAuthForChecked() {
+      this.addLog(`Manage: Log\\Pass (Admin) on module for selected modules (${this.checkedDevices.length})`);
       this.selectedAdminDevices = this.selectedDevices;
       if (this.selectedAdminDevices.length === 0) {
         this.showNotification('No devices selected');
@@ -1038,6 +1073,7 @@ export default {
     },
     openSetUsersForChecked() {
       if (this.checkedDevices.length === 0) return;
+      this.addLog(`Manage: Log\\Pass (Users) on module for selected modules (${this.checkedDevices.length})`);
       this.usersPassCheckedDevices = this.devices.filter(d => this.checkedDevices.includes(d.mac));
       this.showUsersPassCheckedDialog = true;
     },
@@ -1049,6 +1085,8 @@ export default {
       }
     },
     openGroupDialog(action) {
+      const labels = { new: 'New Group', delete: 'Delete Group', assign: 'Add to Group', remove: 'Delete from Group' };
+      this.addLog(`Manage: Groups - ${labels[action] || action}`);
       this.groupAction = action;
       this.showGroupDialog = true;
     },
@@ -1062,8 +1100,10 @@ export default {
           const plainGroups = JSON.parse(JSON.stringify(this.availableGroups));
           console.log('[Saving] Plain Groups:', plainGroups);
           await window.storageAPI.setGroups(plainGroups);
+          this.addLog(`Manage: Groups - group "${groupName}" created`);
           this.showNotification(`✅ Group "${groupName}" created!`);
         } else {
+          this.addLog(`Manage: Groups - group "${groupName}" already exists`);
           this.showNotification(`⚠️ Group "${groupName}" already exists.`);
         }
       }
@@ -1079,6 +1119,7 @@ export default {
             await window.storageAPI.upsertModule(JSON.parse(JSON.stringify(device)));
           }
         }
+        this.addLog(`Manage: Groups - group "${groupName}" deleted`);
         this.showNotification(`🗑️ Group "${groupName}" deleted!`);
         await this.loadDevices();
       }
@@ -1095,6 +1136,7 @@ export default {
           this.availableGroups.push(groupName);
           await window.storageAPI.setGroups(JSON.parse(JSON.stringify(this.availableGroups)));
         }
+        this.addLog(`Manage: Groups - selected modules assigned to "${groupName}"`);
         this.showNotification(`✅ Devices assigned to "${groupName}"`);
         await this.loadDevices();
         this.checkedDevices = [];
@@ -1108,6 +1150,7 @@ export default {
             await window.storageAPI.upsertModule(JSON.parse(JSON.stringify(device)));
           }
         }
+        this.addLog(`Manage: Groups - group removed from selected modules`);
         this.showNotification(`✅ Group removed from selected devices!`);
         await this.loadDevices();
         this.checkedDevices = [];
@@ -1126,14 +1169,25 @@ export default {
     },
     async toggleGroupsPanel() {
       this.showGroupsPanel = !this.showGroupsPanel;
+      this.addLog(`Manage: Groups panel ${this.showGroupsPanel ? 'opened' : 'closed'}`);
       this.showSchedulerPanel = false;
       if (this.showGroupsPanel) {
         await this.loadGroups();
       }
     },
+    toggleSchedulerPanel() {
+      this.showSchedulerPanel = !this.showSchedulerPanel;
+      this.showGroupsPanel = false;
+      this.addLog(`Manage: Scheduler panel ${this.showSchedulerPanel ? 'opened' : 'closed'}`);
+    },
+    openAddDialog() {
+      this.addLog('Manage: Add by IP opened');
+      this.showAddDialog = true;
+    },
     async handleAddDeviceClose(reload = false) {
       this.showAddDialog = false
       if (reload) {
+        this.addLog('Manage: Add by IP completed')
         await this.loadDevices()   // ✅ вот так подтягивает новые устройства сразу
       }
     },
@@ -1160,8 +1214,13 @@ export default {
     },
     closeSingleModuleControl() {
       this.showSingleModuleControlDialog = false;
+    },    
+    openSettingsTab() {
+      this.activeTab = 'settings';
+      if (!this.selectedSettingsPanel) {
+        this.selectedSettingsPanel = 'config';
+      }
     },
-
     async toggleSetAudioInline() {
       if (!this.selectedDevice) {
         this.showNotification('Select a module first in Control tab.');
@@ -1462,6 +1521,35 @@ export default {
       a.click();
       URL.revokeObjectURL(url);
     },
+    formatLogTime(date = new Date()) {
+      return date.toLocaleString();
+    },
+    async loadAppLog() {
+      if (!window.storageAPI?.loadLog) return;
+      try {
+        const logEntries = await window.storageAPI.loadLog();
+        this.appLog = Array.isArray(logEntries) ? logEntries : [];
+      } catch (error) {
+        console.error('Failed to load application log:', error);
+      }
+    },
+    addLog(message) {
+      const entry = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        time: this.formatLogTime(),
+        message,
+      };
+      this.appLog.unshift(entry);
+      window.storageAPI?.appendLog?.({
+        time: entry.time,
+        message: entry.message,
+      }).catch((error) => {
+        console.error('Failed to write application log:', error);
+      });
+    },
+    deviceLabel(device) {
+      return device?.name || device?.ip || device?.mac || 'module';
+    },
     showNotification(message) {
       this.toastMessage = message;
       this.showToast = true;
@@ -1479,6 +1567,8 @@ export default {
     },
   },
   async mounted() {
+    await this.loadAppLog()
+    this.addLog('Program started')
     await this.loadDevices()
     await this.loadGroups()
     await this.loadSchedulerPresets()
@@ -1785,8 +1875,41 @@ main {
   text-align: center;
   pointer-events: none;
 }
+.settings-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
 
+.log-empty {
+  color: #777;
+  font-style: italic;
+}
 
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.log-entry {
+  display: flex;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.log-time {
+  flex: 0 0 170px;
+  color: #555;
+  font-size: 13px;
+}
+
+.log-message {
+  flex: 1;
+}
 .config-buttons {
   display: flex;
   flex-direction: column;
@@ -1834,4 +1957,3 @@ main {
 }
 
 </style>
-

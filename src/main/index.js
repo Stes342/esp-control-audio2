@@ -34,7 +34,12 @@ ipcMain.handle('loadScheduler', () => storage.loadScheduler());
 ipcMain.handle('saveScheduler', (_, scheduler) => {
   return storage.saveScheduler(scheduler);
 });
-
+ipcMain.handle('loadLog', () => {
+  return storage.loadLog();
+});
+ipcMain.handle('appendLog', (_, entry) => {
+  return storage.appendLog(entry);
+});
 
 
 let mainWindow
@@ -65,7 +70,7 @@ function createWindow () {
   }
 
   // Опционально:
-   mainWindow.webContents.openDevTools()
+  // mainWindow.webContents.openDevTools()
 }
 
 //app.whenReady().then(createWindow)
@@ -290,4 +295,3 @@ app.on('activate', () => {
     createWindow()
   }
 })
-

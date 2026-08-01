@@ -5,6 +5,7 @@ const path = require('path');
 const electron = require('electron');
 const app = electron.app || electron.remote.app;
 const dbPath = path.join(app.getPath('userData'), 'modules.json');
+const logPath = path.join(app.getPath('userData'), 'app-log.txt');
 
 function createEmptyScheduler() {
   return {
@@ -112,6 +113,42 @@ function saveScheduler(scheduler) {
   return db.scheduler;
 }
 
+// ===== 📝 Текстовый лог приложения =====
+
+function formatLogLine(entry) {
+  const time = entry?.time || new Date().toLocaleString();
+  const message = String(entry?.message || '').replace(/\r?\n/g, ' ');
+  return `[${time}] ${message}`;
+}
+
+function parseLogLine(line, index) {
+  const match = line.match(/^\[(.*?)\]\s?(.*)$/);
+  return {
+    id: `file-${index}`,
+    time: match ? match[1] : '',
+    message: match ? match[2] : line,
+  };
+}
+
+function loadLog() {
+  try {
+    const text = fs.readFileSync(logPath, 'utf-8');
+    return text
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map(parseLogLine)
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+function appendLog(entry) {
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  fs.appendFileSync(logPath, `${formatLogLine(entry)}\n`, 'utf-8');
+  return loadLog();
+}
+
 // ===== 🗃️ Общие утилиты =====
 
 function loadDB() {
@@ -139,5 +176,7 @@ module.exports = {
   loadGroups,
   saveGroups,
   loadScheduler,
-  saveScheduler
+  saveScheduler,
+  loadLog,
+  appendLog
 };

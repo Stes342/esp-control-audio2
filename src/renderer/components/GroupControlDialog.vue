@@ -85,6 +85,7 @@
 <script>
 export default {
   props: ['devices', 'allGroups', 'audioUrls', 'playlists'],
+  emits: ['notify', 'log', 'close'],
   data() {
     return {
       selectedGroups: [],      
@@ -110,6 +111,9 @@ export default {
     notify(message) {
       this.$emit('notify', message);
     },
+    logAction(message) {
+      this.$emit('log', message);
+    },
     getTargetDevices() {
       const includeAll = this.selectedGroups.includes('All');
       const includeNoGroup = this.selectedGroups.includes('NoGroup');        
@@ -119,7 +123,8 @@ export default {
         return this.selectedGroups.includes(d.group);
       });
     },
-    async setAudioUrlForGroups() {      
+    async setAudioUrlForGroups() {  
+      this.logAction('Control: Group Control - Set audio URL');    
       const targetDevices = this.getTargetDevices();
       if (targetDevices.length === 0) {
         this.notify('⚠️ No target groups selected.');
@@ -152,6 +157,7 @@ export default {
       }
     },
     async sendPlaylistForGroups() {
+      this.logAction('Control: Group Control - Set playlist');
       const playlist = this.playlists.find(item => item.id === this.playlistId);
       const urls = Array.isArray(playlist?.urls) ? playlist.urls : [];
 
@@ -197,6 +203,7 @@ export default {
       }
     },
     async sendAudioCommandForGroups(command) {
+      this.logAction(`Control: Group Control - ${command}`);
       const commandLabels = {
         play: 'Play',
         pause: 'Pause',
@@ -236,6 +243,7 @@ export default {
     },
 
     async sendWorkTimeForGroups() {
+      this.logAction('Control: Group Control - Set work time');
       const targetDevices = this.getTargetDevices();
       if (targetDevices.length === 0) {
         this.notify('⚠️ No target groups selected.');
@@ -272,6 +280,7 @@ export default {
     },
 
     async sendNtpForGroups() {
+      this.logAction('Control: Group Control - Set NTP');
       if (!this.ntpServer) return;
       const targetDevices = this.getTargetDevices();
       if (targetDevices.length === 0) {
@@ -304,6 +313,7 @@ export default {
       }
     },
     async sendFirmwareUpdateForGroups() {
+      this.logAction('Control: Group Control - Firmware update');
       if (!this.firmwareUpdateUrl.startsWith('http://')) {
         this.notify('❌ Firmware URL must start with http://');
         return;

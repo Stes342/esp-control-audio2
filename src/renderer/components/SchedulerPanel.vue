@@ -245,6 +245,7 @@ function todayDate() {
 
 export default {
   name: 'SchedulerPanel',
+  emits: ['log'],
   props: {
     devices: {
       type: Array,
@@ -354,6 +355,15 @@ export default {
     }
   },
   methods: {
+    logAction(message) {
+      this.$emit('log', message);
+    },
+    schedulerNameById(id) {
+      return this.scheduler.daySchedulers.find(item => item.id === id)?.name || id;
+    },
+    schedulerNamesByIds(ids) {
+      return ids.map(id => this.schedulerNameById(id)).join(', ') || 'none';
+    },
     createId(prefix) {
       return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     },
@@ -493,22 +503,27 @@ export default {
       await this.saveScheduler();
     },
     async addAudioUrlPreset() {
+      const presetName = this.newAudioUrl.name;
       this.scheduler.audioUrls.push({
         id: this.createId('audio'),
-        name: this.newAudioUrl.name,
+        name: presetName,
         url: this.newAudioUrl.url
       });
       this.newAudioUrl = { name: '', url: '' };
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - Audio stream URL "${presetName}" added`);
     },
     async deleteAudioUrlPreset(id) {
+      const presetName = this.scheduler.audioUrls.find(preset => preset.id === id)?.name || id;
       this.scheduler.audioUrls = this.scheduler.audioUrls.filter(preset => preset.id !== id);
       this.scheduler.daySchedulers.forEach((dayScheduler) => {
         dayScheduler.events = dayScheduler.events.filter(event => event.audioUrlId !== id);
       });
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - Audio stream URL "${presetName}" deleted`);
     },
     async addPlaylistPreset() {
+      const playlistName = this.newPlaylist.name;
       const urls = this.newPlaylist.urls
         .split(',')
         .map(url => url.trim())
@@ -518,24 +533,28 @@ export default {
 
       this.scheduler.playlists.push({
         id: this.createId('playlist'),
-        name: this.newPlaylist.name,
+        name: playlistName,
         urls,
         returnToPrevious: true
       });
       this.newPlaylist = { name: '', urls: '' };
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - Playlist URL "${playlistName}" added`);
     },
     async deletePlaylistPreset(id) {
+      const playlistName = this.scheduler.playlists.find(playlist => playlist.id === id)?.name || id;
       this.scheduler.playlists = this.scheduler.playlists.filter(playlist => playlist.id !== id);
       this.scheduler.daySchedulers.forEach((dayScheduler) => {
         dayScheduler.events = dayScheduler.events.filter(event => event.playlistId !== id);
       });
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - Playlist URL "${playlistName}" deleted`);
     },
     async addDayScheduler() {
+      const schedulerName = this.newDaySchedulerName;
       const scheduler = {
         id: this.createId('scheduler'),
-        name: this.newDaySchedulerName,
+        name: schedulerName,
         color: this.nextSchedulerColor(),
         targetType: 'groups',
         targetGroups: ['All'],
@@ -546,11 +565,13 @@ export default {
       this.selectedDaySchedulerId = scheduler.id;
       this.newDaySchedulerName = '';
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - schedule "${schedulerName}" added`);
     },
     selectDayScheduler(id) {
       this.selectedDaySchedulerId = id;
     },
     async deleteDayScheduler(id) {
+      const schedulerName = this.schedulerNameById(id);
       this.scheduler.daySchedulers = this.scheduler.daySchedulers.filter(item => item.id !== id);
       this.scheduler.calendarAssignments = this.scheduler.calendarAssignments
         .map(assignment => ({
@@ -562,6 +583,7 @@ export default {
         this.selectedDaySchedulerId = this.scheduler.daySchedulers[0]?.id || '';
       }
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - schedule "${schedulerName}" deleted`);
     },
     async addSchedulerEvent() {
       if (!this.canAddSchedulerEvent) return;
@@ -653,8 +675,14 @@ export default {
         alert(conflict);
         return;
       }
+      const schedulerIds = this.draftAssignmentSchedulerIds.slice();
       this.setAssignment(this.selectedCalendarDate, this.draftAssignmentSchedulerIds);
       await this.saveScheduler();
+      if (schedulerIds.length > 0) {
+        this.logAction(`Manage: Scheduler - Calendar ${this.selectedCalendarDate} assigned to ${this.schedulerNamesByIds(schedulerIds)}`);
+      } else {
+        this.logAction(`Manage: Scheduler - Calendar ${this.selectedCalendarDate} unassigned`);
+      }
     },
     setAssignment(date, schedulerIds) {
       const cleanIds = Array.from(new Set(schedulerIds));
@@ -720,6 +748,7 @@ export default {
     async copySelectedDayToDates() {
       if (!this.selectedCalendarDate || this.copyTargetDates.length === 0) return;
       const sourceIds = this.draftAssignmentSchedulerIds.slice();
+      const targetDates = this.copyTargetDates.slice();
       const conflict = this.findAssignmentConflict(sourceIds);
       if (conflict) {
         alert(conflict);
@@ -729,6 +758,7 @@ export default {
         this.setAssignment(date, sourceIds);
       }
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - Calendar ${this.selectedCalendarDate} copied to dates ${targetDates.join(', ')}`);
     },
     async copySelectedDayToMonth() {
       if (!this.selectedCalendarDate) return;
@@ -743,9 +773,11 @@ export default {
         this.setAssignment(this.dateForMonthDay(this.calendarMonth, day), sourceIds);
       }
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - Calendar ${this.selectedCalendarDate} copied to whole month ${this.calendarMonth}`);
     },
     async copyCurrentMonthToMonths() {
       if (this.copyTargetMonths.length === 0) return;
+      const targetMonths = this.copyTargetMonths.slice();
       const sourceAssignments = this.scheduler.calendarAssignments.filter(assignment => assignment.date?.startsWith(`${this.calendarMonth}-`));
       const weekdayAssignments = sourceAssignments.map((assignment) => ({
         ...this.getWeekdayOrdinalInMonth(assignment.date),
@@ -764,6 +796,7 @@ export default {
       }
       this.copyTargetMonths = [];
       await this.saveScheduler();
+      this.logAction(`Manage: Scheduler - Copy month ${this.calendarMonth} to ${targetMonths.join(', ')}`);
     },
     actionLabel(action) {
       const labels = {
@@ -990,4 +1023,5 @@ export default {
   background: #aaa;
   cursor: not-allowed;
 }
+
 </style>

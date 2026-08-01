@@ -74,7 +74,7 @@
 <script>
 export default {
   props: ['selectedDevice', 'audioUrls', 'playlists'],
-  emits: ['notify', 'close'],
+  emits: ['notify', 'log', 'close'],
   data() {
     return {
       audioUrl: '',
@@ -106,7 +106,11 @@ export default {
     notify(message) {
       this.$emit('notify', message);
     },
+    logAction(message) {
+      this.$emit('log', message);
+    },
     async setAudioUrl() {
+      this.logAction(`Control: Single module control - Set stream URL for ${this.selectedLabel}`);
       if (!this.selectedDevice || !this.audioUrl) return;
 
       const encodedUrl = encodeURIComponent(this.audioUrl);
@@ -123,6 +127,7 @@ export default {
       }
     },
     async sendPlaylist() {
+      this.logAction(`Control: Single module control - Send Playlist for ${this.selectedLabel}`);
       if (!this.selectedDevice || !this.playlistId) return;
 
       const playlist = this.playlists.find(item => item.id === this.playlistId);
@@ -151,6 +156,7 @@ export default {
       }
     },
     async sendWorkTime() {
+      this.logAction(`Control: Single module control - Set work time for ${this.selectedLabel}`);
       if (!this.selectedDevice) return;
 
       const params = new URLSearchParams({
@@ -174,6 +180,7 @@ export default {
       }
     },
     async sendNtp() {
+      this.logAction(`Control: Single module control - Set NTP for ${this.selectedLabel}`);
       if (!this.selectedDevice || !this.ntpServer) return;
 
       const encodedServer = encodeURIComponent(this.ntpServer);
@@ -191,6 +198,7 @@ export default {
       }
     },
     async sendFirmwareUpdate() {
+       this.logAction(`Control: Single module control - Firmware update for ${this.selectedLabel}`);
       if (!this.selectedDevice || !this.firmwareUpdateUrl) return;
 
       if (!this.firmwareUpdateUrl.startsWith('http://')) {
