@@ -2,27 +2,66 @@ const fs = require('fs');
 const path = require('path');
 
 
-
 const electron = require('electron');
 const app = electron.app || electron.remote.app;
 const dbPath = path.join(app.getPath('userData'), 'modules.json');
+const logPath = path.join(app.getPath('userData'), 'app-log.txt');
+
+function createEmptyScheduler() {
+  return {
+    audioUrls: [],
+    playlists: [],
+    events: [],
+  daySchedulers: [],
+    calendarAssignments: []
+  };
+}
+
+function createEmptyDB() {
+  return {
+    modules: [],
+    groups: [],
+    scheduler: createEmptyScheduler()
+  };
+}
+
+function normalizeDB(db) {
+  if (Array.isArray(db)) {
+    return {
+      ...createEmptyDB(),
+      modules: db
+    };
+  }
+
+  if (!db || typeof db !== 'object') {
+    return createEmptyDB();
+  }
+
+  return {
+    ...db,
+    modules: Array.isArray(db.modules) ? db.modules : [],
+    groups: Array.isArray(db.groups) ? db.groups : [],
+    scheduler: {
+      ...createEmptyScheduler(),
+      ...(db.scheduler && typeof db.scheduler === 'object' ? db.scheduler : {}),
+      audioUrls: Array.isArray(db.scheduler?.audioUrls) ? db.scheduler.audioUrls : [],
+      playlists: Array.isArray(db.scheduler?.playlists) ? db.scheduler.playlists : [],
+      events: Array.isArray(db.scheduler?.events) ? db.scheduler.events : [],
+      daySchedulers: Array.isArray(db.scheduler?.daySchedulers) ? db.scheduler.daySchedulers : [],
+      calendarAssignments: Array.isArray(db.scheduler?.calendarAssignments) ? db.scheduler.calendarAssignments : []
+    }
+  };
+}
 
 function loadModules() {
-  try {
-    const data = fs.readFileSync(dbPath, 'utf-8');
-    const db = JSON.parse(data);
-    // Если структура изменилась — поддержи старый формат
-    if (Array.isArray(db)) return db; // старый вид — только модули
-    return db.modules || [];
-  } catch (e) {
-    return [];
-  }
+  return loadDB().modules;
 }
 
 function saveModules(modules) {
   const db = loadDB();
-  db.modules = modules;
+  db.modules = Array.isArray(modules) ? modules : [];
   saveDB(db);
+  return db.modules;
 }
 
 function upsertModule(module) {
@@ -34,55 +73,96 @@ function upsertModule(module) {
   } else {
     modules.push(module);
   }
-
-  saveModules(modules);
+  return saveModules(modules);
 }
 
 function deleteModule(mac) {
   const db = loadDB();
   db.modules = db.modules.filter(m => m.mac !== mac);
   saveDB(db);
+  return db.modules;
 }
 
 function removeModule(mac) {
-  deleteModule(mac);
+  return deleteModule(mac);
 }
 
 // ===== 🔥 Добавляем поддержку групп! =====
 
 function loadGroups() {
-  try {
-    const data = fs.readFileSync(dbPath, 'utf-8');
-    const db = JSON.parse(data);
-    return db.groups || [];
-  } catch (e) {
-    return [];
-  }
+  return loadDB().groups;
 }
 
 function saveGroups(groups) {
   const db = loadDB();
-  db.groups = groups;
+  db.groups = Array.isArray(groups) ? groups : [];
   saveDB(db);
+  return db.groups;
+}
+
+// ===== 🗓️ Поддержка scheduler =====
+
+function loadScheduler() {
+  return loadDB().scheduler;
+}
+
+function saveScheduler(scheduler) {
+  const db = loadDB();
+  db.scheduler = normalizeDB({ scheduler }).scheduler;
+  saveDB(db);
+  return db.scheduler;
+}
+
+// ===== 📝 Текстовый лог приложения =====
+
+function formatLogLine(entry) {
+  const time = entry?.time || new Date().toLocaleString();
+  const message = String(entry?.message || '').replace(/\r?\n/g, ' ');
+  return `[${time}] ${message}`;
+}
+
+function parseLogLine(line, index) {
+  const match = line.match(/^\[(.*?)\]\s?(.*)$/);
+  return {
+    id: `file-${index}`,
+    time: match ? match[1] : '',
+    message: match ? match[2] : line,
+  };
+}
+
+function loadLog() {
+  try {
+    const text = fs.readFileSync(logPath, 'utf-8');
+    return text
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map(parseLogLine)
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+function appendLog(entry) {
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  fs.appendFileSync(logPath, `${formatLogLine(entry)}\n`, 'utf-8');
+  return loadLog();
 }
 
 // ===== 🗃️ Общие утилиты =====
 
 function loadDB() {
   try {
-    const db = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
-    if (Array.isArray(db)) {
-      // старый формат — только модули
-      return { modules: db, groups: [] };
-    }
-    return db;
+    return normalizeDB(JSON.parse(fs.readFileSync(dbPath, 'utf-8')));
   } catch {
-    return { modules: [], groups: [] };
+    return createEmptyDB();
   }
 }
 
 function saveDB(db) {
-  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf-8');
+  const normalizedDB = normalizeDB(db);
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  fs.writeFileSync(dbPath, JSON.stringify(normalizedDB, null, 2), 'utf-8');
 }
 
 // ===== ✅ Экспорт =====
@@ -94,5 +174,9 @@ module.exports = {
   deleteModule,
   removeModule,
   loadGroups,
-  saveGroups
+  saveGroups,
+  loadScheduler,
+  saveScheduler,
+  loadLog,
+  appendLog
 };

@@ -1,0 +1,927 @@
+{\rtf1\ansi\ansicpg1251\deff0\nouicompat\deflang1049{\fonttbl{\f0\fnil\fcharset204 Calibri;}{\f1\fnil Calibri;}{\f2\fnil\fcharset1 Segoe UI Symbol;}{\f3\fnil\fcharset0 Calibri;}}
+{\colortbl ;\red0\green0\blue255;}
+{\*\generator Riched20 10.0.19041}\viewkind4\uc1 
+\pard\sl240\slmult1\f0\fs22\lang1058\'cf\'eb\'e0\'ed \'ec\'ee\'e4\'e5\'f0\'ed\'e8\'e7\'e0\'f6\'e8\'e8 \'ea\'eb\'e8\'e5\'ed\'f2\'e0 \'ef\'ee\'e4 ~200 ESP32-S3 \'ec\'ee\'e4\'f3\'eb\'e5\'e9\par
+\'df \'e8\'e7\'f3\'f7\'e8\'eb mod.rtf, \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'f3 esp32.txt \'e8 \'ee\'f1\'ed\'ee\'e2\'ed\'fb\'e5 \'f4\'e0\'e9\'eb\'fb Electron/Vue-\'ea\'eb\'e8\'e5\'ed\'f2\'e0. \'cf\'ee\'ea\'e0 \'ea\'ee\'e4 \'ed\'e5 \'ec\'e5\'ed\'ff\'eb, \'ea\'ee\'ec\'ec\'e8\'f2 \'e8 PR \'ed\'e5 \'f1\'ee\'e7\'e4\'e0\'e2\'e0\'eb.\par
+\par
+1. \'d2\'e5\'ea\'f3\'f9\'e5\'e5 \'f1\'ee\'f1\'f2\'ee\'ff\'ed\'e8\'e5 \'e8 \'e3\'eb\'e0\'e2\'ed\'e0\'ff \'ef\'f0\'ee\'e1\'eb\'e5\'ec\'e0\par
+\'d1\'e5\'e9\'f7\'e0\'f1 \'ea\'eb\'e8\'e5\'ed\'f2 \'f3\'e6\'e5 \'ef\'ee\'ea\'e0\'e7\'fb\'e2\'e0\'e5\'f2 \'ea\'e0\'e6\'e4\'fb\'e9 \'ec\'ee\'e4\'f3\'eb\'fc \'ee\'f2\'e4\'e5\'eb\'fc\'ed\'ee\'e9 \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'ee\'e9: \'e2 App.vue \'f1\'ef\'e8\'f1\'ee\'ea \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'f0\'e5\'ed\'e4\'e5\'f0\'e8\'f2\'f1\'ff \'f7\'e5\'f0\'e5\'e7 v-for="device in filteredDevices", \'e0 \'e2 \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'e5 \'f1\'f0\'e0\'e7\'f3 \'ee\'f2\'ee\'e1\'f0\'e0\'e6\'e0\'fe\'f2\'f1\'ff IP, MAC, \'eb\'ee\'e3\'e8\'ed, \'e3\'f0\'f3\'ef\'ef\'e0, WiFi, \'f1\'ee\'f1\'f2\'ee\'ff\'ed\'e8\'e5 \'e0\'f3\'e4\'e8\'ee \'e8 \'f2\'e5\'ea\'f3\'f9\'e8\'e9 \'f2\'f0\'e5\'ea. \par
+\par
+\'c3\'eb\'e0\'e2\'ed\'e0\'ff \'ed\'e0\'e3\'f0\'f3\'e7\'ee\'f7\'ed\'e0\'ff \'ef\'f0\'ee\'e1\'eb\'e5\'ec\'e0 \f1\emdash  \f0\'ef\'e5\'f0\'e8\'ee\'e4\'e8\'f7\'e5\'f1\'ea\'e8\'e9 \'ee\'ef\'f0\'ee\'f1 \'f1\'f2\'e0\'f2\'f3\'f1\'e0. \'cc\'e5\'f2\'ee\'e4 startAvailabilityCheck() \'ea\'e0\'e6\'e4\'fb\'e5 10 \'f1\'e5\'ea\'f3\'ed\'e4 \'f1\'f2\'f0\'ee\'e8\'f2 \'ec\'e0\'f1\'f1\'e8\'e2 \'e7\'e0\'e4\'e0\'f7 \'ef\'ee \'e2\'f1\'e5\'ec \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0\'ec \'e8 \'e7\'e0\'ef\'f3\'f1\'ea\'e0\'e5\'f2 \'e8\'f5 \'f7\'e5\'f0\'e5\'e7 Promise.allSettled(tasks), \'f2\'ee \'e5\'f1\'f2\'fc \'ef\'f0\'e8 200 \'ec\'ee\'e4\'f3\'eb\'ff\'f5 \'ea\'eb\'e8\'e5\'ed\'f2 \'ef\'ee\'f2\'e5\'ed\'f6\'e8\'e0\'eb\'fc\'ed\'ee \'ee\'e4\'ed\'ee\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'ee \'e4\'e5\'eb\'e0\'e5\'f2 200 HTTP-\'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2 \'ea /status. \par
+\par
+\'dd\'f2\'ee \'f0\'ee\'e2\'ed\'ee \'f2\'ee\'f2 \'f0\'e8\'f1\'ea, \'ea\'ee\'f2\'ee\'f0\'fb\'e9 \'ee\'ef\'e8\'f1\'e0\'ed \'e2 mod.rtf: \'ed\'e5 \'ef\'e5\'f0\'e5\'ef\'e8\'f1\'fb\'e2\'e0\'f2\'fc \'e2\'f1\'b8 \'f1\'f0\'e0\'e7\'f3, \'e0 \'e2\'fb\'ed\'e5\'f1\'f2\'e8 \'f1\'e5\'f2\'e5\'e2\'f3\'fe \'f0\'e0\'e1\'ee\'f2\'f3 \'e8\'e7 App.vue, \'e4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'ee\'e3\'f0\'e0\'ed\'e8\'f7\'e5\'ed\'e8\'e5 \'ee\'e4\'ed\'ee\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'fb\'f5 \'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2 \'e4\'ee \'ef\'f0\'e8\'ec\'e5\'f0\'ed\'ee 20, \'e7\'e0\'f2\'e5\'ec \'ea\'fd\'f8 \'e8 \'e1\'ee\'eb\'e5\'e5 \'f3\'ec\'ed\'ee\'e5 \'ef\'e5\'f0\'e5\'ef\'ee\'e4\'ea\'eb\'fe\'f7\'e5\'ed\'e8\'e5. \par
+\par
+\'dd\'f2\'e0\'ef 0. \'cf\'ee\'e4\'e3\'ee\'f2\'ee\'e2\'ea\'e0 \'e8 \'f4\'e8\'ea\'f1\'e0\'f6\'e8\'ff \'e1\'e0\'e7\'ee\'e2\'ee\'e3\'ee \'ef\'ee\'e2\'e5\'e4\'e5\'ed\'e8\'ff\par
+\'d6\'e5\'eb\'fc: \'e4\'ee \'f0\'e5\'f4\'e0\'ea\'f2\'ee\'f0\'e8\'ed\'e3\'e0 \'e7\'e0\'f4\'e8\'ea\'f1\'e8\'f0\'ee\'e2\'e0\'f2\'fc, \'f7\'f2\'ee \'ea\'eb\'e8\'e5\'ed\'f2 \'f3\'ec\'e5\'e5\'f2 \'f1\'e5\'e9\'f7\'e0\'f1, \'f7\'f2\'ee\'e1\'fb \'ed\'e5 \'f1\'eb\'ee\'ec\'e0\'f2\'fc \'f3\'ef\'f0\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'ec\'ee\'e4\'f3\'eb\'ff\'ec\'e8.\par
+\par
+\'d7\'f2\'ee \'f1\'e4\'e5\'eb\'e0\'f2\'fc\par
+\'ce\'ef\'e8\'f1\'e0\'f2\'fc \'f2\'e5\'ea\'f3\'f9\'e8\'e5 \'f1\'f6\'e5\'ed\'e0\'f0\'e8\'e8:\par
+\par
+\'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'ec\'ee\'e4\'f3\'eb\'ff \'ef\'ee IP;\par
+\par
+\'f7\'f2\'e5\'ed\'e8\'e5 /identify;\par
+\par
+\'ef\'e5\'f0\'e8\'ee\'e4\'e8\'f7\'e5\'f1\'ea\'e8\'e9 /status;\par
+\par
+\'f3\'ef\'f0\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'e0\'f3\'e4\'e8\'ee: /audio/seturl, /audio/playlist, /audio/play, /audio/pause;\par
+\par
+\'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5;\par
+\par
+\'e3\'f0\'f3\'ef\'ef\'fb;\par
+\par
+\'e8\'ec\'ef\'ee\'f0\'f2/\'fd\'ea\'f1\'ef\'ee\'f0\'f2 \'ea\'ee\'ed\'f4\'e8\'e3\'f3\'f0\'e0\'f6\'e8\'e8.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'ec\'e8\'ed\'e8\'ec\'e0\'eb\'fc\'ed\'fb\'e5 dev-\'ef\'f0\'ee\'e2\'e5\'f0\'ea\'e8:\par
+\par
+npm run build;\par
+\par
+\'f0\'f3\'f7\'ed\'ee\'e9 smoke-test \'e2 Electron;\par
+\par
+\'f2\'e5\'f1\'f2\'ee\'e2\'fb\'e9 \'ed\'e0\'e1\'ee\'f0 \'e8\'e7 50\f1\endash 200 \f0\'f4\'e8\'ea\'f2\'e8\'e2\'ed\'fb\'f5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2, \'f7\'f2\'ee\'e1\'fb \'ef\'f0\'ee\'e2\'e5\'f0\'ff\'f2\'fc \'ef\'f0\'ee\'e8\'e7\'e2\'ee\'e4\'e8\'f2\'e5\'eb\'fc\'ed\'ee\'f1\'f2\'fc UI \'e8 \'ee\'f7\'e5\'f0\'e5\'e4\'e8.\par
+\par
+\'c7\'e0\'f4\'e8\'ea\'f1\'e8\'f0\'ee\'e2\'e0\'f2\'fc \'f1\'f2\'f0\'f3\'ea\'f2\'f3\'f0\'f3 API \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e8:\par
+\par
+/identify \'e2\'ee\'e7\'e2\'f0\'e0\'f9\'e0\'e5\'f2 ESP32-AUDIOCTRL|MAC=...|NAME=.... \par
+\par
+/status \'e2\'ee\'e7\'e2\'f0\'e0\'f9\'e0\'e5\'f2 JSON \'f1 relays, wifi.rssi, audio.state, audio.current, audio.url, audio.volume, playlistActive. \par
+\par
+\'e0\'f3\'e4\'e8\'ee-\'ea\'ee\'ec\'e0\'ed\'e4\'fb \'e7\'e0\'f0\'e5\'e3\'e8\'f1\'f2\'f0\'e8\'f0\'ee\'e2\'e0\'ed\'fb \'ea\'e0\'ea /audio/playlist, /audio/volume, /audio/seturl, /audio/play, /audio/pause, /audio/toggle, /audio/reboot. \par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'c4\'ee\'ea\'f3\'ec\'e5\'ed\'f2\'e8\'f0\'ee\'e2\'e0\'ed\'ed\'e0\'ff \'ea\'e0\'f0\'f2\'e0 \'f2\'e5\'ea\'f3\'f9\'e5\'e9 \'eb\'ee\'e3\'e8\'ea\'e8 \'e8 API, \'f7\'f2\'ee\'e1\'fb \'ef\'ee\'f1\'eb\'e5\'e4\'f3\'fe\'f9\'e8\'e5 \'e8\'e7\'ec\'e5\'ed\'e5\'ed\'e8\'ff \'e4\'e5\'eb\'e0\'f2\'fc \'ec\'e0\'eb\'e5\'ed\'fc\'ea\'e8\'ec\'e8 \'e1\'e5\'e7\'ee\'ef\'e0\'f1\'ed\'fb\'ec\'e8 \'f8\'e0\'e3\'e0\'ec\'e8.\par
+\par
+\'dd\'f2\'e0\'ef 1. \'c2\'fb\'ed\'e5\'f1\'f2\'e8 \'f1\'e5\'f2\'e5\'e2\'ee\'e9 API \'e2 ApiService\par
+\'d6\'e5\'eb\'fc: \'f3\'e1\'f0\'e0\'f2\'fc \'ef\'f0\'ff\'ec\'fb\'e5 fetch(...) \'e8\'e7 \'ea\'ee\'ec\'ef\'ee\'ed\'e5\'ed\'f2\'ee\'e2 \'e8 \'f6\'e5\'ed\'f2\'f0\'e0\'eb\'e8\'e7\'ee\'e2\'e0\'f2\'fc \'f0\'e0\'e1\'ee\'f2\'f3 \'f1 ESP32 API.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 \'ef\'f0\'ff\'ec\'fb\'e5 HTTP-\'e2\'fb\'e7\'ee\'e2\'fb \'f0\'e0\'e7\'e1\'f0\'ee\'f1\'e0\'ed\'fb \'ef\'ee App.vue: \'ed\'e0\'ef\'f0\'e8\'ec\'e5\'f0, \'ef\'e5\'f0\'e8\'ee\'e4\'e8\'f7\'e5\'f1\'ea\'e8\'e9 \'f1\'f2\'e0\'f2\'f3\'f1 \'e7\'e0\'ef\'f0\'e0\'f8\'e8\'e2\'e0\'e5\'f2\'f1\'ff \'ed\'e0\'ef\'f0\'ff\'ec\'f3\'fe \'f7\'e5\'f0\'e5\'e7 fetch("http://localhost:3000/proxy/.../status").  \'d0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5 \'f2\'ee\'e6\'e5 \'ed\'e0\'ef\'f0\'ff\'ec\'f3\'fe \'e2\'fb\'e7\'fb\'e2\'e0\'e5\'f2 /audio/seturl, /audio/playlist, /audio/play, /audio/pause.  \'ce\'f2\'ef\'f0\'e0\'e2\'ea\'e0 URL \'e8 \'ef\'eb\'e5\'e9\'eb\'e8\'f1\'f2\'e0 \'e2\'fb\'e1\'f0\'e0\'ed\'ed\'ee\'ec\'f3 \'ec\'ee\'e4\'f3\'eb\'fe \'f2\'e0\'ea\'e6\'e5 \'f1\'e4\'e5\'eb\'e0\'ed\'e0 \'ed\'e0\'ef\'f0\'ff\'ec\'f3\'fe \'e8\'e7 App.vue. \par
+\par
+\'d7\'f2\'ee \'f1\'ee\'e7\'e4\'e0\'f2\'fc\par
+\'cd\'ee\'e2\'fb\'e9 \'f4\'e0\'e9\'eb:\par
+\par
+src/renderer/services/ApiService.js\par
+\'ce\'f2\'e2\'e5\'f2\'f1\'f2\'e2\'e5\'ed\'ed\'ee\'f1\'f2\'fc ApiService\par
+\'cc\'e5\'f2\'ee\'e4\'fb:\par
+\par
+getStatus(device)\par
+identify(ip)\par
+setAudioUrl(device, url)\par
+sendPlaylist(device, playlist)\par
+audioCommand(device, command)\par
+setVolume(device, volume)\par
+toggleRelay(device, relayId, state)\par
+getAccess(device)\par
+\'c2\'e0\'e6\'ed\'fb\'e5 \'e4\'e5\'f2\'e0\'eb\'e8\par
+\'c2\'ed\'f3\'f2\'f0\'e8 \'f1\'e5\'f0\'e2\'e8\'f1\'e0 \'e8\'f1\'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'fc \'f2\'e5\'ea\'f3\'f9\'e8\'e9 Electron-proxy:\par
+\par
+{{\field{\*\fldinst{HYPERLINK http://localhost:3000/proxy/:ip/ }}{\fldrslt{http://localhost:3000/proxy/:ip/\ul0\cf0}}}}\f0\fs22 ...\par
+\'cf\'f0\'ee\'ea\'f1\'e8 \'f3\'e6\'e5 \'f3\'ec\'e5\'e5\'f2 \'e4\'ee\'e1\'e0\'e2\'eb\'ff\'f2\'fc Basic Auth \'e8\'e7 \'ef\'e0\'ec\'ff\'f2\'e8 \'e8\'eb\'e8 \'e8\'e7 \'f1\'ee\'f5\'f0\'e0\'ed\'b8\'ed\'ed\'ee\'e9 \'e1\'e0\'e7\'fb. \par
+\par
+\'c2 \'f1\'e5\'f0\'e2\'e8\'f1\'e5 \'f1\'f0\'e0\'e7\'f3 \'f1\'f2\'e0\'ed\'e4\'e0\'f0\'f2\'e8\'e7\'e8\'f0\'ee\'e2\'e0\'f2\'fc:\par
+\par
+\'f2\'e0\'e9\'ec\'e0\'f3\'f2\'fb \'f7\'e5\'f0\'e5\'e7 AbortController;\par
+\par
+\'f7\'f2\'e5\'ed\'e8\'e5 \'f2\'e5\'eb\'e0 \'ee\'f8\'e8\'e1\'ea\'e8;\par
+\par
+\'ed\'ee\'f0\'ec\'e0\'eb\'e8\'e7\'e0\'f6\'e8\'fe \'ee\'f2\'e2\'e5\'f2\'e0 /status;\par
+\par
+\'e5\'e4\'e8\'ed\'fb\'e9 \'f4\'ee\'f0\'ec\'e0\'f2 \'ee\'f8\'e8\'e1\'ea\'e8.\par
+\par
+App.vue \'ef\'ee\'f1\'eb\'e5 \'fd\'f2\'e0\'ef\'e0 \'e4\'ee\'eb\'e6\'e5\'ed \'f2\'ee\'eb\'fc\'ea\'ee \'e2\'fb\'e7\'fb\'e2\'e0\'f2\'fc \'ec\'e5\'f2\'ee\'e4\'fb \'f1\'e5\'f0\'e2\'e8\'f1\'e0, \'e0 \'ed\'e5 \'e7\'ed\'e0\'f2\'fc URL endpoints.\par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+HTTP-\'eb\'ee\'e3\'e8\'ea\'e0 ESP32 \'e1\'f3\'e4\'e5\'f2 \'e2 \'ee\'e4\'ed\'ee\'ec \'ec\'e5\'f1\'f2\'e5. \'c5\'f1\'eb\'e8 API \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e8 \'e8\'e7\'ec\'e5\'ed\'e8\'f2\'f1\'ff, \'ef\'f0\'e0\'e2\'e8\'f2\'fc \'ed\'f3\'e6\'ed\'ee \'e1\'f3\'e4\'e5\'f2 \'e2 ApiService, \'e0 \'ed\'e5 \'ef\'ee \'e2\'f1\'e5\'ec\'f3 Vue-\'ea\'ee\'e4\'f3. \'dd\'f2\'ee \'f1\'ee\'ee\'f2\'e2\'e5\'f2\'f1\'f2\'e2\'f3\'e5\'f2 \'f0\'e5\'ea\'ee\'ec\'e5\'ed\'e4\'e0\'f6\'e8\'e8 \'e8\'e7 mod.rtf \'e2\'fb\'ed\'e5\'f1\'f2\'e8 fetch(...) \'e2 Api.getStatus, Api.setRelay, Api.setVolume, Api.play \'e8 \'f2.\'e4. \par
+\par
+\'dd\'f2\'e0\'ef 2. \'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc RequestQueue \'f1 \'eb\'e8\'ec\'e8\'f2\'ee\'ec \'ef\'e0\'f0\'e0\'eb\'eb\'e5\'eb\'fc\'ed\'ee\'f1\'f2\'e8\par
+\'d6\'e5\'eb\'fc: \'f3\'e1\'f0\'e0\'f2\'fc \'ee\'e4\'ed\'ee\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'fb\'e9 \'f8\'ea\'e2\'e0\'eb \'e8\'e7 200 HTTP-\'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 \'ef\'f0\'e8 \'ea\'e0\'e6\'e4\'ee\'ec \'f6\'e8\'ea\'eb\'e5 \'ef\'f0\'ee\'e2\'e5\'f0\'ea\'e8 \'ea\'eb\'e8\'e5\'ed\'f2 \'e7\'e0\'ef\'f3\'f1\'ea\'e0\'e5\'f2 \'e7\'e0\'ef\'f0\'ee\'f1\'fb \'ea\'ee \'e2\'f1\'e5\'ec \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0\'ec \'f1\'f0\'e0\'e7\'f3.  \'c4\'eb\'ff 200 \'ec\'ee\'e4\'f3\'eb\'e5\'e9 \'fd\'f2\'ee \'ec\'ee\'e6\'e5\'f2 \'ef\'e5\'f0\'e5\'e3\'f0\'f3\'e7\'e8\'f2\'fc \'f1\'e0\'ec \'ea\'eb\'e8\'e5\'ed\'f2, \'f1\'e5\'f2\'e5\'e2\'ee\'e9 \'f1\'f2\'e5\'ea Windows, Electron, \'ef\'f0\'ee\'ea\'f1\'e8 \'e8 ESP32.\par
+\par
+\'d7\'f2\'ee \'f1\'ee\'e7\'e4\'e0\'f2\'fc\par
+\'cd\'ee\'e2\'fb\'e9 \'f4\'e0\'e9\'eb:\par
+\par
+src/renderer/services/RequestQueue.js\par
+\'cc\'e8\'ed\'e8\'ec\'e0\'eb\'fc\'ed\'e0\'ff \'eb\'ee\'e3\'e8\'ea\'e0\par
+class RequestQueue \{\par
+  constructor(\{ concurrency = 20 \} = \{\}) \{\}\par
+\par
+  add(task, options)\par
+  addStatusTask(device, task)\par
+  clear()\par
+  cancelDevice(deviceKey)\par
+  getStats()\par
+\}\par
+\'cf\'f0\'e0\'e2\'e8\'eb\'e0 \'ee\'f7\'e5\'f0\'e5\'e4\'e8\par
+\'cc\'e0\'ea\'f1\'e8\'ec\'f3\'ec 10\f1\endash 20 \f0\'ee\'e4\'ed\'ee\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'fb\'f5 HTTP-\'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2.\par
+\par
+\'c4\'eb\'ff /status \'e8\'f1\'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'fc \'ed\'e8\'e7\'ea\'e8\'e9 \'ef\'f0\'e8\'ee\'f0\'e8\'f2\'e5\'f2.\par
+\par
+\'c4\'eb\'ff \'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'e5\'eb\'fc\'f1\'ea\'e8\'f5 \'e4\'e5\'e9\'f1\'f2\'e2\'e8\'e9 \f1\emdash  \f0\'e2\'fb\'f1\'ee\'ea\'e8\'e9 \'ef\'f0\'e8\'ee\'f0\'e8\'f2\'e5\'f2:\par
+\par
+play/pause;\par
+\par
+set URL;\par
+\par
+playlist;\par
+\par
+relay toggle;\par
+\par
+save auth/access.\par
+\par
+\'c5\'f1\'eb\'e8 \'e4\'eb\'ff \'ee\'e4\'ed\'ee\'e3\'ee \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'f3\'e6\'e5 \'e5\'f1\'f2\'fc \'ee\'e6\'e8\'e4\'e0\'fe\'f9\'e8\'e9 /status, \'ed\'ee\'e2\'fb\'e9 \'f1\'f2\'e0\'f2\'f3\'f1-\'e7\'e0\'ef\'f0\'ee\'f1 \'e4\'eb\'ff \'ed\'e5\'e3\'ee \'ed\'e5 \'e4\'ee\'e1\'e0\'e2\'eb\'ff\'f2\'fc.\par
+\par
+\'c5\'f1\'eb\'e8 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'ee offline, \'ed\'e5 \'ee\'ef\'f0\'e0\'f8\'e8\'e2\'e0\'f2\'fc \'e5\'e3\'ee \'f1\'eb\'e8\'f8\'ea\'ee\'ec \'f7\'e0\'f1\'f2\'ee.\par
+\par
+\'cf\'ee\'e4\'e4\'e5\'f0\'e6\'e0\'f2\'fc \'ee\'f2\'ec\'e5\'ed\'f3 \'f3\'f1\'f2\'e0\'f0\'e5\'e2\'f8\'e8\'f5 \'e7\'e0\'e4\'e0\'f7.\par
+\par
+\'cf\'ee\'f7\'e5\'ec\'f3 \'fd\'f2\'ee \'e2\'e0\'e6\'ed\'ee\par
+\'c2 mod.rtf \'ef\'f0\'ff\'ec\'ee \'f0\'e5\'ea\'ee\'ec\'e5\'ed\'e4\'f3\'e5\'f2\'f1\'ff \'ee\'f7\'e5\'f0\'e5\'e4\'fc \'f1 \'ee\'e3\'f0\'e0\'ed\'e8\'f7\'e5\'ed\'e8\'e5\'ec \'ef\'f0\'e8\'ec\'e5\'f0\'ed\'ee \'e4\'ee 20 \'ee\'e4\'ed\'ee\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'fb\'f5 \'f1\'ee\'e5\'e4\'e8\'ed\'e5\'ed\'e8\'e9 \'ea\'e0\'ea \'f1\'e0\'ec\'fb\'e9 \'e7\'e0\'ec\'e5\'f2\'ed\'fb\'e9 \'ef\'f0\'e8\'f0\'ee\'f1\'f2 \'ef\'f0\'ee\'e8\'e7\'e2\'ee\'e4\'e8\'f2\'e5\'eb\'fc\'ed\'ee\'f1\'f2\'e8 \'ef\'f0\'e8 \'e1\'ee\'eb\'fc\'f8\'ee\'ec \'ea\'ee\'eb\'e8\'f7\'e5\'f1\'f2\'e2\'e5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2.  \'d2\'e0\'ea\'e6\'e5 \'f2\'e0\'ec \'ee\'f2\'e4\'e5\'eb\'fc\'ed\'ee \'ee\'ef\'e8\'f1\'e0\'ed RequestQueue.js, \'e3\'e4\'e5 200 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'e4\'ee\'eb\'e6\'ed\'fb \'ef\'f0\'ee\'f5\'ee\'e4\'e8\'f2\'fc \'f7\'e5\'f0\'e5\'e7 \'ee\'f7\'e5\'f0\'e5\'e4\'fc \'ec\'e0\'ea\'f1\'e8\'ec\'f3\'ec \'ef\'ee 20 \'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2 \'ee\'e4\'ed\'ee\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'ee. \par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'c4\'e0\'e6\'e5 \'ef\'f0\'e8 200 \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'e0\'f5 \'ea\'eb\'e8\'e5\'ed\'f2 \'ed\'e5 \'e1\'f3\'e4\'e5\'f2 \'e4\'e5\'eb\'e0\'f2\'fc 200 \'ee\'e4\'ed\'ee\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'fb\'f5 \'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2. \'c7\'e0\'ef\'f0\'ee\'f1\'fb \'ef\'ee\'e9\'e4\'f3\'f2 \'e1\'e0\'f2\'f7\'e0\'ec\'e8, UI \'f1\'f2\'e0\'ed\'e5\'f2 \'f1\'f2\'e0\'e1\'e8\'eb\'fc\'ed\'e5\'e5.\par
+\par
+\'dd\'f2\'e0\'ef 3. \'c2\'e2\'e5\'f1\'f2\'e8 DeviceManager \'ea\'e0\'ea \'f6\'e5\'ed\'f2\'f0\'e0\'eb\'fc\'ed\'fb\'e9 \'e4\'e8\'f1\'ef\'e5\'f2\'f7\'e5\'f0 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\par
+\'d6\'e5\'eb\'fc: \'f3\'e1\'f0\'e0\'f2\'fc \'e8\'e7 App.vue \'f3\'ef\'f0\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'f1\'f2\'e0\'f2\'f3\'f1\'e0\'ec\'e8, \'e8\'ed\'f2\'e5\'f0\'e2\'e0\'eb\'e0\'ec\'e8, online/offline, \'ea\'fd\'f8\'e5\'ec \'e8 \'f1\'e5\'f2\'e5\'e2\'fb\'ec\'e8 \'e2\'fb\'e7\'ee\'e2\'e0\'ec\'e8.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 App.vue \'ee\'e4\'ed\'ee\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'ee:\par
+\par
+\'e7\'e0\'e3\'f0\'f3\'e6\'e0\'e5\'f2 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'e8\'e7 storage; \par
+\par
+\'ef\'e0\'f0\'f1\'e8\'f2 /status; \par
+\par
+\'ee\'e1\'ed\'ee\'e2\'eb\'ff\'e5\'f2 online/offline;\par
+\par
+\'e7\'e0\'ef\'f3\'f1\'ea\'e0\'e5\'f2 \'e8\'ed\'f2\'e5\'f0\'e2\'e0\'eb \'ee\'ef\'f0\'ee\'f1\'e0; \par
+\par
+\'e8\'f1\'ef\'ee\'eb\'ed\'ff\'e5\'f2 \'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5; \par
+\par
+\'ee\'f2\'ef\'f0\'e0\'e2\'eb\'ff\'e5\'f2 audio-\'ea\'ee\'ec\'e0\'ed\'e4\'fb. \par
+\par
+\'dd\'f2\'ee \'e4\'e5\'eb\'e0\'e5\'f2 \'ea\'ee\'ec\'ef\'ee\'ed\'e5\'ed\'f2 \'f1\'eb\'e8\'f8\'ea\'ee\'ec \'f2\'ff\'e6\'b8\'eb\'fb\'ec \'e4\'eb\'ff \'ec\'e0\'f1\'f8\'f2\'e0\'e1\'e8\'f0\'ee\'e2\'e0\'ed\'e8\'ff.\par
+\par
+\'d7\'f2\'ee \'f1\'ee\'e7\'e4\'e0\'f2\'fc\par
+\'cd\'ee\'e2\'fb\'e9 \'f4\'e0\'e9\'eb:\par
+\par
+src/renderer/services/DeviceManager.js\par
+\'ce\'f2\'e2\'e5\'f2\'f1\'f2\'e2\'e5\'ed\'ed\'ee\'f1\'f2\'fc DeviceManager\par
+\'d5\'f0\'e0\'ed\'e8\'f2\'fc \'f1\'ef\'e8\'f1\'ee\'ea \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2.\par
+\par
+\'c7\'e0\'e3\'f0\'f3\'e6\'e0\'f2\'fc \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'f7\'e5\'f0\'e5\'e7 window.storageAPI.loadModules.\par
+\par
+\'ce\'e1\'ed\'ee\'e2\'eb\'ff\'f2\'fc \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'ee \'f7\'e5\'f0\'e5\'e7 upsertModule.\par
+\par
+\'cf\'e5\'f0\'e8\'ee\'e4\'e8\'f7\'e5\'f1\'ea\'e8 \'ee\'ef\'f0\'e0\'f8\'e8\'e2\'e0\'f2\'fc /status \'f7\'e5\'f0\'e5\'e7 ApiService \'e8 RequestQueue.\par
+\par
+\'cf\'ee\'e4\'e4\'e5\'f0\'e6\'e8\'e2\'e0\'f2\'fc \'ef\'ee\'eb\'ff:\par
+\par
+available;\par
+\par
+lastSeenAt;\par
+\par
+lastStatusAt;\par
+\par
+lastErrorAt;\par
+\par
+failCount;\par
+\par
+nextPollAt;\par
+\par
+wifiRssi;\par
+\par
+audioPlaybackState;\par
+\par
+audioNowPlaying;\par
+\par
+audioNowPlayingUrl;\par
+\par
+relayStates.\par
+\par
+\'ce\'f2\'e4\'e0\'e2\'e0\'f2\'fc Vue \'f3\'e6\'e5 \'e3\'ee\'f2\'ee\'e2\'fb\'e5 \'e4\'e0\'ed\'ed\'fb\'e5.\par
+\par
+\'cf\'f0\'e5\'e4\'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc \'ec\'e5\'f2\'ee\'e4\'fb \'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'e5\'eb\'fc\'f1\'ea\'e8\'f5 \'ea\'ee\'ec\'e0\'ed\'e4:\par
+\par
+sendAudioUrl(device, url);\par
+\par
+sendPlaylist(device, playlist);\par
+\par
+sendAudioCommand(device, command);\par
+\par
+refreshDevice(device);\par
+\par
+refreshAll();\par
+\par
+removeDevice(mac).\par
+\par
+\'c8\'ed\'f2\'e5\'e3\'f0\'e0\'f6\'e8\'ff \'f1 Vue\par
+App.vue \'e4\'ee\'eb\'e6\'e5\'ed \'f1\'f2\'e0\'f2\'fc \'f2\'ee\'ed\'fc\'f8\'e5:\par
+\par
+mounted() \{\par
+  this.deviceManager = createDeviceManager()\par
+  this.unsubscribe = this.deviceManager.subscribe(devices => \{\par
+    this.devices = devices\par
+  \})\par
+  this.deviceManager.start()\par
+\}\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+App.vue \'e1\'f3\'e4\'e5\'f2 \'ee\'f2\'e2\'e5\'f7\'e0\'f2\'fc \'e2 \'ee\'f1\'ed\'ee\'e2\'ed\'ee\'ec \'e7\'e0 \'e8\'ed\'f2\'e5\'f0\'f4\'e5\'e9\'f1: \'e2\'ea\'eb\'e0\'e4\'ea\'e8, \'e2\'fb\'e1\'f0\'e0\'ed\'ed\'ee\'e5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'ee, \'f4\'e8\'eb\'fc\'f2\'f0\'fb, \'e4\'e8\'e0\'eb\'ee\'e3\'e8 \'e8 \'ee\'f2\'ee\'e1\'f0\'e0\'e6\'e5\'ed\'e8\'e5 \'ea\'e0\'f0\'f2\'ee\'f7\'e5\'ea. \'dd\'f2\'ee \'f1\'ee\'ee\'f2\'e2\'e5\'f2\'f1\'f2\'e2\'f3\'e5\'f2 \'f0\'e5\'ea\'ee\'ec\'e5\'ed\'e4\'e0\'f6\'e8\'e8 mod.rtf: \'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc \'e2 App.vue \'e8\'ed\'f2\'e5\'f0\'f4\'e5\'e9\'f1, \'e0 \'f1\'ef\'e8\'f1\'ee\'ea \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2, \'ee\'f7\'e5\'f0\'e5\'e4\'fc, \'ef\'e5\'f0\'e8\'ee\'e4\'e8\'f7\'e5\'f1\'ea\'e8\'e9 \'ee\'ef\'f0\'ee\'f1, \'ef\'e5\'f0\'e5\'ef\'ee\'e4\'ea\'eb\'fe\'f7\'e5\'ed\'e8\'e5, online/offline \'e8 \'ea\'fd\'f8 \'ef\'e5\'f0\'e5\'ed\'e5\'f1\'f2\'e8 \'e2 DeviceManager. \par
+\par
+\'dd\'f2\'e0\'ef 4. \'d0\'e0\'e7\'e4\'e5\'eb\'e8\'f2\'fc \'e1\'fb\'f1\'f2\'f0\'fb\'e5 \'e8 \'ec\'e5\'e4\'eb\'e5\'ed\'ed\'fb\'e5 \'e4\'e0\'ed\'ed\'fb\'e5\par
+\'d6\'e5\'eb\'fc: \'ed\'e5 \'e3\'ee\'ed\'ff\'f2\'fc \'ef\'ee \'f1\'e5\'f2\'e8 \'eb\'e8\'f8\'ed\'fe\'fe \'e8\'ed\'f4\'ee\'f0\'ec\'e0\'f6\'e8\'fe \'ea\'e0\'e6\'e4\'fb\'e5 10 \'f1\'e5\'ea\'f3\'ed\'e4.\par
+\par
+\'cf\'f0\'ee\'f8\'e8\'e2\'ea\'e0 \'f3\'e6\'e5 \'ee\'f2\'e4\'e0\'b8\'f2 \'e2 /status \'e1\'fb\'f1\'f2\'f0\'fb\'e5 \'e4\'e0\'ed\'ed\'fb\'e5: \'f0\'e5\'eb\'e5, WiFi RSSI, \'f1\'ee\'f1\'f2\'ee\'ff\'ed\'e8\'e5 \'e0\'f3\'e4\'e8\'ee, \'f2\'e5\'ea\'f3\'f9\'e8\'e9 URL, volume, playlist state.  \'dd\'f2\'ee \'ec\'ee\'e6\'ed\'ee \'ee\'ef\'f0\'e0\'f8\'e8\'e2\'e0\'f2\'fc \'f0\'e5\'e3\'f3\'eb\'ff\'f0\'ed\'ee.\par
+\par
+\'cd\'ee \'ec\'e5\'e4\'eb\'e5\'ed\'ed\'fb\'e5 \'e4\'e0\'ed\'ed\'fb\'e5 \f1\emdash  MAC, \f0\'e8\'ec\'ff \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0, IP, \'eb\'ee\'e3\'e8\'ed, \'e3\'f0\'f3\'ef\'ef\'e0 \f1\emdash  \f0\'ed\'e5 \'ed\'f3\'e6\'ed\'ee \'e7\'e0\'ef\'f0\'e0\'f8\'e8\'e2\'e0\'f2\'fc \'f7\'e0\'f1\'f2\'ee. \'d1\'e5\'e9\'f7\'e0\'f1 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'ef\'ee\'eb\'f3\'f7\'e0\'e5\'f2 MAC \'e8 NAME \'f7\'e5\'f0\'e5\'e7 /identify.  \'c8 \'f1\'e0\'ec\'e0 \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e0 \'ee\'f2\'e4\'e0\'b8\'f2 /identify \'ee\'f2\'e4\'e5\'eb\'fc\'ed\'ee. \par
+\par
+\'c1\'fb\'f1\'f2\'f0\'fb\'e5 \'e4\'e0\'ed\'ed\'fb\'e5\par
+\'ce\'ef\'f0\'e0\'f8\'e8\'e2\'e0\'f2\'fc \'f0\'e5\'e3\'f3\'eb\'ff\'f0\'ed\'ee:\par
+\par
+online/offline;\par
+\par
+WiFi RSSI;\par
+\par
+audio state;\par
+\par
+now playing;\par
+\par
+volume;\par
+\par
+relay states;\par
+\par
+playlist state.\par
+\par
+\'cc\'e5\'e4\'eb\'e5\'ed\'ed\'fb\'e5 \'e4\'e0\'ed\'ed\'fb\'e5\par
+\'cf\'ee\'eb\'f3\'f7\'e0\'f2\'fc \'f2\'ee\'eb\'fc\'ea\'ee:\par
+\par
+\'ef\'f0\'e8 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e8 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0;\par
+\par
+\'ef\'f0\'e8 \'f0\'f3\'f7\'ed\'ee\'ec Refresh;\par
+\par
+\'ef\'ee\'f1\'eb\'e5 \'e8\'e7\'ec\'e5\'ed\'e5\'ed\'e8\'ff \'e8\'ec\'e5\'ed\'e8/\'eb\'ee\'ea\'e0\'f6\'e8\'e8;\par
+\par
+\'ef\'f0\'e8 \'f1\'ec\'e5\'ed\'e5 IP;\par
+\par
+\'ef\'ee\'f1\'eb\'e5 \'e8\'ec\'ef\'ee\'f0\'f2\'e0 \'ea\'ee\'ed\'f4\'e8\'e3\'f3\'f0\'e0\'f6\'e8\'e8.\par
+\par
+\'cc\'e5\'e4\'eb\'e5\'ed\'ed\'fb\'e5 \'e4\'e0\'ed\'ed\'fb\'e5:\par
+\par
+MAC;\par
+\par
+\'e8\'ec\'ff;\par
+\par
+\'e2\'e5\'f0\'f1\'e8\'ff \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e8, \'e5\'f1\'eb\'e8 \'e1\'f3\'e4\'e5\'f2 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e0;\par
+\par
+hostname;\par
+\par
+SSID, \'e5\'f1\'eb\'e8 \'e1\'f3\'e4\'e5\'f2 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed;\par
+\par
+\'ef\'ee\'f1\'f2\'ee\'ff\'ed\'ed\'fb\'e5 \'ed\'e0\'f1\'f2\'f0\'ee\'e9\'ea\'e8.\par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'cc\'e5\'ed\'fc\'f8\'e5 \'f1\'e5\'f2\'e5\'e2\'ee\'e3\'ee \'f2\'f0\'e0\'f4\'e8\'ea\'e0, \'ec\'e5\'ed\'fc\'f8\'e5 \'ed\'e0\'e3\'f0\'f3\'e7\'ea\'e8 \'ed\'e0 ESP32 \'e8 \'ec\'e5\'ed\'fc\'f8\'e5 \'ef\'e5\'f0\'e5\'f0\'e8\'f1\'ee\'e2\'ee\'ea UI.\par
+\par
+\'dd\'f2\'e0\'ef 5. \'d3\'ec\'ed\'fb\'e9 polling \'e2\'ec\'e5\'f1\'f2\'ee \'ee\'e1\'f9\'e5\'e3\'ee setInterval \'ed\'e0 \'e2\'f1\'e5\'f5\par
+\'d6\'e5\'eb\'fc: \'ee\'f2\'ea\'e0\'e7\'e0\'f2\'fc\'f1\'ff \'ee\'f2 \'ec\'ee\'e4\'e5\'eb\'e8 \ldblquote\'ea\'e0\'e6\'e4\'fb\'e5 10 \'f1\'e5\'ea\'f3\'ed\'e4 \'ee\'ef\'f0\'ee\'f1\'e8\'f2\'fc \'e2\'f1\'e5\'f5\rdblquote .\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 \'e8\'ed\'f2\'e5\'f0\'e2\'e0\'eb \'ea\'e0\'e6\'e4\'fb\'e5 10 \'f1\'e5\'ea\'f3\'ed\'e4 \'e7\'e0\'ef\'f3\'f1\'ea\'e0\'e5\'f2 \'ef\'ee\'eb\'ed\'fb\'e9 \'ef\'f0\'ee\'f5\'ee\'e4 \'ef\'ee \'e2\'f1\'e5\'ec \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0\'ec. \par
+\par
+\'cd\'ee\'e2\'e0\'ff \'ec\'ee\'e4\'e5\'eb\'fc\par
+\'d3 \'ea\'e0\'e6\'e4\'ee\'e3\'ee \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'e4\'ee\'eb\'e6\'e5\'ed \'e1\'fb\'f2\'fc \'f1\'e2\'ee\'e9 nextPollAt.\par
+\par
+\'cf\'f0\'e8\'ec\'e5\'f0:\par
+\par
+online device: poll every 10\f1\endash 15 sec\par
+offline failCount 1\endash 2: poll every 20\endash 30 sec\par
+offline failCount 3\endash 5: poll every 60 sec\par
+offline failCount > 5: poll every 2\endash 5 min\par
+selected device: poll every 3\endash 5 sec\par
+device with active playlist/radio: poll every 5\endash 10 sec\par
+\f0\'cb\'ee\'e3\'e8\'ea\'e0\par
+DeviceManager \'f0\'e0\'e7 \'e2 1 \'f1\'e5\'ea\'f3\'ed\'e4\'f3 \'ef\'f0\'ee\'e2\'e5\'f0\'ff\'e5\'f2, \'ea\'e0\'ea\'e8\'e5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'ef\'ee\'f0\'e0 \'ee\'ef\'f0\'ee\'f1\'e8\'f2\'fc.\par
+\par
+\'c2 \'ee\'f7\'e5\'f0\'e5\'e4\'fc \'e4\'ee\'e1\'e0\'e2\'eb\'ff\'fe\'f2\'f1\'ff \'f2\'ee\'eb\'fc\'ea\'ee \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0, \'f3 \'ea\'ee\'f2\'ee\'f0\'fb\'f5 Date.now() >= nextPollAt.\par
+\par
+\'d3 online-\'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'e8\'ed\'f2\'e5\'f0\'e2\'e0\'eb \'f1\'f2\'e0\'e1\'e8\'eb\'fc\'ed\'fb\'e9.\par
+\par
+\'d3 offline-\'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'e8\'ed\'f2\'e5\'f0\'e2\'e0\'eb \'f3\'e2\'e5\'eb\'e8\'f7\'e8\'e2\'e0\'e5\'f2\'f1\'ff.\par
+\par
+\'cf\'f0\'e8 \'f0\'f3\'f7\'ed\'ee\'ec \'ea\'eb\'e8\'ea\'e5 \'ed\'e0 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'ee \f1\emdash  \f0\'e1\'fb\'f1\'f2\'f0\'fb\'e9 refresh \'e2\'ed\'e5 \'ee\'f7\'e5\'f0\'e5\'e4\'e8 \'e8\'eb\'e8 \'f1 \'e2\'fb\'f1\'ee\'ea\'e8\'ec \'ef\'f0\'e8\'ee\'f0\'e8\'f2\'e5\'f2\'ee\'ec.\par
+\par
+\'cf\'f0\'e8 \'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'e5\'eb\'fc\'f1\'ea\'ee\'e9 \'ea\'ee\'ec\'e0\'ed\'e4\'e5 \'ef\'ee\'f1\'eb\'e5 \'f3\'f1\'ef\'e5\'f8\'ed\'ee\'e9 \'ee\'f2\'ef\'f0\'e0\'e2\'ea\'e8 \f1\emdash  \f0\'ef\'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc \'e1\'eb\'e8\'e6\'e0\'e9\'f8\'e8\'e9 refresh \'f7\'e5\'f0\'e5\'e7 1\f1\endash 2 \f0\'f1\'e5\'ea\'f3\'ed\'e4\'fb.\par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'c4\'eb\'ff 200 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'f1\'e8\'f1\'f2\'e5\'ec\'e0 \'ef\'e5\'f0\'e5\'f1\'f2\'e0\'ed\'e5\'f2 \'e6\'e8\'f2\'fc \ldblquote\'ef\'e8\'ea\'e0\'ec\'e8\rdblquote  \'ef\'ee 200 \'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2. \'cd\'e0\'e3\'f0\'f3\'e7\'ea\'e0 \'f1\'f2\'e0\'ed\'e5\'f2 \'f0\'e0\'e2\'ed\'ee\'ec\'e5\'f0\'ed\'ee\'e9.\par
+\par
+\'dd\'f2\'e0\'ef 6. \'ca\'fd\'f8 \'f1\'f2\'e0\'f2\'f3\'f1\'e0 \'e8 \'ee\'f2\'ea\'e0\'e7 \'ee\'f2 \'eb\'e8\'f8\'ed\'e8\'f5 \'ef\'e5\'f0\'e5\'f0\'e8\'f1\'ee\'e2\'ee\'ea\par
+\'d6\'e5\'eb\'fc: \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'e8 \'ed\'e5 \'e4\'ee\'eb\'e6\'ed\'fb \'ec\'e0\'f1\'f1\'ee\'e2\'ee \'ef\'e5\'f0\'e5\'f0\'e8\'f1\'ee\'e2\'fb\'e2\'e0\'f2\'fc\'f1\'ff, \'e5\'f1\'eb\'e8 \'e4\'e0\'ed\'ed\'fb\'e5 \'ed\'e5 \'e8\'e7\'ec\'e5\'ed\'e8\'eb\'e8\'f1\'fc.\par
+\par
+\'d7\'f2\'ee \'f1\'e4\'e5\'eb\'e0\'f2\'fc\par
+\'c2 DeviceManager \'f5\'f0\'e0\'ed\'e8\'f2\'fc \'ef\'ee\'f1\'eb\'e5\'e4\'ed\'e8\'e9 \'ed\'ee\'f0\'ec\'e0\'eb\'e8\'e7\'ee\'e2\'e0\'ed\'ed\'fb\'e9 \'f1\'f2\'e0\'f2\'f3\'f1.\par
+\par
+\'cf\'f0\'e8 \'ed\'ee\'e2\'ee\'ec /status \'f1\'f0\'e0\'e2\'ed\'e8\'e2\'e0\'f2\'fc \'ef\'ee\'eb\'ff:\par
+\par
+available;\par
+\par
+wifiRssi;\par
+\par
+audioPlaybackState;\par
+\par
+audioNowPlaying;\par
+\par
+audioNowPlayingUrl;\par
+\par
+volume;\par
+\par
+relays.\par
+\par
+\'ce\'e1\'ed\'ee\'e2\'eb\'ff\'f2\'fc Vue-\'f1\'ee\'f1\'f2\'ee\'ff\'ed\'e8\'e5 \'f2\'ee\'eb\'fc\'ea\'ee \'e5\'f1\'eb\'e8 \'e7\'ed\'e0\'f7\'e5\'ed\'e8\'ff \'f0\'e5\'e0\'eb\'fc\'ed\'ee \'e8\'e7\'ec\'e5\'ed\'e8\'eb\'e8\'f1\'fc.\par
+\par
+\'cd\'e5 \'ef\'e5\'f0\'e5\'f1\'ee\'e7\'e4\'e0\'e2\'e0\'f2\'fc \'e2\'e5\'f1\'fc \'ec\'e0\'f1\'f1\'e8\'e2 devices, \'e5\'f1\'eb\'e8 \'e8\'e7\'ec\'e5\'ed\'e8\'eb\'f1\'ff \'ee\'e4\'e8\'ed \'ec\'ee\'e4\'f3\'eb\'fc.\par
+\par
+\'c4\'eb\'ff storage \'ed\'e5 \'ef\'e8\'f1\'e0\'f2\'fc \'e2\'e5\'f1\'fc modules.json \'ed\'e0 \'ea\'e0\'e6\'e4\'fb\'e9 \'f1\'f2\'e0\'f2\'f3\'f1 \f1\emdash  \f0\'f1\'f2\'e0\'f2\'f3\'f1 \'e4\'ee\'eb\'e6\'e5\'ed \'e6\'e8\'f2\'fc \'e2 runtime-\'ea\'fd\'f8\'e5, \'e0 \'e2 \'f4\'e0\'e9\'eb \'ef\'e8\'f1\'e0\'f2\'fc \'f2\'ee\'eb\'fc\'ea\'ee \'ea\'ee\'ed\'f4\'e8\'e3\'f3\'f0\'e0\'f6\'e8\'ee\'ed\'ed\'fb\'e5 \'e8\'e7\'ec\'e5\'ed\'e5\'ed\'e8\'ff.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 storage \'f5\'f0\'e0\'ed\'e8\'f2 modules, groups, scheduler \'e2 \'ee\'e4\'ed\'ee\'ec JSON-\'f4\'e0\'e9\'eb\'e5, \'e8 \'ee\'ef\'e5\'f0\'e0\'f6\'e8\'e8 saveModules \'ef\'e5\'f0\'e5\'e7\'e0\'ef\'e8\'f1\'fb\'e2\'e0\'fe\'f2 \'ec\'e0\'f1\'f1\'e8\'e2 \'ec\'ee\'e4\'f3\'eb\'e5\'e9.  \'dd\'f2\'ee \'ed\'ee\'f0\'ec\'e0\'eb\'fc\'ed\'ee \'e4\'eb\'ff \'ea\'ee\'ed\'f4\'e8\'e3\'f3\'f0\'e0\'f6\'e8\'e8, \'ed\'ee \'ed\'e5\'e6\'e5\'eb\'e0\'f2\'e5\'eb\'fc\'ed\'ee \'e8\'f1\'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'fc \'e4\'eb\'ff \'f7\'e0\'f1\'f2\'fb\'f5 runtime-\'f1\'f2\'e0\'f2\'f3\'f1\'ee\'e2.\par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+UI \'f1\'f2\'e0\'ed\'e5\'f2 \'eb\'e5\'e3\'f7\'e5, \'e4\'e8\'f1\'ea \'ed\'e5 \'e1\'f3\'e4\'e5\'f2 \'ef\'ee\'eb\'f3\'f7\'e0\'f2\'fc \'eb\'e8\'f8\'ed\'e8\'e5 \'e7\'e0\'ef\'e8\'f1\'e8, Vue \'e1\'f3\'e4\'e5\'f2 \'ef\'e5\'f0\'e5\'f0\'e8\'f1\'ee\'e2\'fb\'e2\'e0\'f2\'fc \'ec\'e5\'ed\'fc\'f8\'e5 DOM.\par
+\par
+\'dd\'f2\'e0\'ef 7. \'ce\'ef\'f2\'e8\'ec\'e8\'e7\'e8\'f0\'ee\'e2\'e0\'f2\'fc \'f1\'ef\'e8\'f1\'ee\'ea \'ea\'e0\'f0\'f2\'ee\'f7\'e5\'ea\par
+\'d6\'e5\'eb\'fc: 200 \'ea\'e0\'f0\'f2\'ee\'f7\'e5\'ea \'ed\'e5 \'e4\'ee\'eb\'e6\'ed\'fb \'f2\'ee\'f0\'ec\'ee\'e7\'e8\'f2\'fc \'e8\'ed\'f2\'e5\'f0\'f4\'e5\'e9\'f1.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'e8 \'f0\'e5\'ed\'e4\'e5\'f0\'ff\'f2\'f1\'ff \'ef\'f0\'ee\'f1\'f2\'fb\'ec v-for \'e2 App.vue.  \'c4\'eb\'ff 200 \'fd\'eb\'e5\'ec\'e5\'ed\'f2\'ee\'e2 \'fd\'f2\'ee \'e5\'f9\'b8 \'e4\'ee\'ef\'f3\'f1\'f2\'e8\'ec\'ee, \'ed\'ee \'ef\'f0\'e8 \'f7\'e0\'f1\'f2\'ee\'ec \'ee\'e1\'ed\'ee\'e2\'eb\'e5\'ed\'e8\'e8 \'f1\'f2\'e0\'f2\'f3\'f1\'ee\'e2 \'e8 \'e1\'ee\'eb\'fc\'f8\'ee\'ec \'ea\'ee\'eb\'e8\'f7\'e5\'f1\'f2\'e2\'e5 \'f2\'e5\'ea\'f1\'f2\'e0 \'ec\'ee\'e6\'e5\'f2 \'f1\'f2\'e0\'f2\'fc \'e7\'e0\'ec\'e5\'f2\'ed\'fb\'ec.\par
+\par
+\'d7\'f2\'ee \'f1\'e4\'e5\'eb\'e0\'f2\'fc \'ef\'ee\'fd\'f2\'e0\'ef\'ed\'ee\par
+\'d1\'ed\'e0\'f7\'e0\'eb\'e0 \'e2\'fb\'ed\'e5\'f1\'f2\'e8 \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'f3 \'e2 \'ee\'f2\'e4\'e5\'eb\'fc\'ed\'fb\'e9 \'ea\'ee\'ec\'ef\'ee\'ed\'e5\'ed\'f2, \'e5\'f1\'eb\'e8 \'f2\'e5\'ea\'f3\'f9\'e0\'ff \'ee\'f1\'ed\'ee\'e2\'ed\'e0\'ff \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'e0 \'ee\'f1\'f2\'e0\'ed\'e5\'f2\'f1\'ff \'e2\'ed\'f3\'f2\'f0\'e8 App.vue.\par
+\par
+\'cf\'e5\'f0\'e5\'e4\'e0\'e2\'e0\'f2\'fc \'e2 \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'f3 \'f2\'ee\'eb\'fc\'ea\'ee \'ed\'f3\'e6\'ed\'fb\'e5 props.\par
+\par
+\'c8\'f1\'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'fc \'f1\'f2\'e0\'e1\'e8\'eb\'fc\'ed\'fb\'e9 :key="device.mac", \'ee\'ed \'f3\'e6\'e5 \'e5\'f1\'f2\'fc. \par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc CSS-\'ee\'e3\'f0\'e0\'ed\'e8\'f7\'e5\'ed\'e8\'ff \'e4\'eb\'ff \'e4\'eb\'e8\'ed\'ed\'ee\'e3\'ee Now playing, \'f7\'f2\'ee\'e1\'fb \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'e8 \'ed\'e5 \ldblquote\'ef\'f0\'fb\'e3\'e0\'eb\'e8\rdblquote .\par
+\par
+\'c5\'f1\'eb\'e8 \'ef\'ee\'f1\'eb\'e5 \'ee\'f7\'e5\'f0\'e5\'e4\'e8 \'e8 \'ea\'fd\'f8\'e0 \'e2\'f1\'b8 \'e5\'f9\'b8 \'e1\'f3\'e4\'f3\'f2 \'eb\'e0\'e3\'e8 \f1\emdash  \f0\'e4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'e2\'e8\'f0\'f2\'f3\'e0\'eb\'e8\'e7\'e0\'f6\'e8\'fe \'f1\'ef\'e8\'f1\'ea\'e0:\par
+\par
+\'ee\'f2\'ee\'e1\'f0\'e0\'e6\'e0\'f2\'fc \'f2\'ee\'eb\'fc\'ea\'ee \'e2\'e8\'e4\'e8\'ec\'fb\'e5 \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'e8;\par
+\par
+\'ee\'f1\'f2\'e0\'eb\'fc\'ed\'fb\'e5 \'e4\'e5\'f0\'e6\'e0\'f2\'fc \'e2 \'e4\'e0\'ed\'ed\'fb\'f5, \'ed\'ee \'ed\'e5 \'e2 DOM.\par
+\par
+\'c4\'eb\'ff 200 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'e2\'e8\'f0\'f2\'f3\'e0\'eb\'e8\'e7\'e0\'f6\'e8\'ff \'ec\'ee\'e6\'e5\'f2 \'e1\'fb\'f2\'fc \'ed\'e5\'ee\'e1\'ff\'e7\'e0\'f2\'e5\'eb\'fc\'ed\'ee\'e9 \'ed\'e0 \'ef\'e5\'f0\'e2\'ee\'ec \'f8\'e0\'e3\'e5, \'ed\'ee \'e0\'f0\'f5\'e8\'f2\'e5\'ea\'f2\'f3\'f0\'ed\'ee \'f1\'f2\'ee\'e8\'f2 \'ef\'f0\'e5\'e4\'f3\'f1\'ec\'ee\'f2\'f0\'e5\'f2\'fc.\par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'c4\'e0\'e6\'e5 \'ef\'f0\'e8 \'e1\'ee\'eb\'fc\'f8\'ee\'ec \'f7\'e8\'f1\'eb\'e5 \'ec\'ee\'e4\'f3\'eb\'e5\'e9 UI \'ee\'f1\'f2\'e0\'ed\'e5\'f2\'f1\'ff \'ee\'f2\'e7\'fb\'e2\'f7\'e8\'e2\'fb\'ec.\par
+\par
+\'dd\'f2\'e0\'ef 8. \'d0\'e0\'e7\'e4\'e5\'eb\'e8\'f2\'fc Discovery/AddDevice \'e2 \'ee\'f2\'e4\'e5\'eb\'fc\'ed\'fb\'e9 DiscoveryService\par
+\'d6\'e5\'eb\'fc: \'ee\'f2\'e4\'e5\'eb\'e8\'f2\'fc \'ee\'e1\'ed\'e0\'f0\'f3\'e6\'e5\'ed\'e8\'e5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'ee\'f2 \'f3\'ef\'f0\'e0\'e2\'eb\'e5\'ed\'e8\'ff \'f3\'e6\'e5 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'ed\'fb\'ec\'e8 \'ec\'ee\'e4\'f3\'eb\'ff\'ec\'e8.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 \'f0\'f3\'f7\'ed\'ee\'e5 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'ed\'e0\'ef\'f0\'ff\'ec\'f3\'fe \'e4\'e5\'eb\'e0\'e5\'f2 fetch(http://IP/identify) \'e8\'e7 \'ea\'ee\'ec\'ef\'ee\'ed\'e5\'ed\'f2\'e0 AddDeviceDialog.vue. \par
+\par
+\'d7\'f2\'ee \'f1\'ee\'e7\'e4\'e0\'f2\'fc\par
+src/renderer/services/DiscoveryService.js\par
+\'ce\'f2\'e2\'e5\'f2\'f1\'f2\'e2\'e5\'ed\'ed\'ee\'f1\'f2\'fc\par
+identify(ip).\par
+\par
+\'c2\'e0\'eb\'e8\'e4\'e0\'f6\'e8\'ff \'ee\'f2\'e2\'e5\'f2\'e0 ESP32-AUDIOCTRL.\par
+\par
+\'cf\'e0\'f0\'f1\'e8\'ed\'e3 MAC \'e8 NAME.\par
+\par
+\'cf\'ee\'e7\'e6\'e5 \f1\emdash  \f0\'f1\'ea\'e0\'ed\'e8\'f0\'ee\'e2\'e0\'ed\'e8\'e5 \'ef\'ee\'e4\'f1\'e5\'f2\'e8, \'e5\'f1\'eb\'e8 \'e1\'f3\'e4\'e5\'f2 \'ed\'f3\'e6\'ed\'ee.\par
+\par
+\'cf\'f0\'ee\'e2\'e5\'f0\'ea\'e0 \'e4\'f3\'e1\'eb\'e5\'e9 \'ef\'ee MAC.\par
+\par
+\'ce\'e1\'ed\'ee\'e2\'eb\'e5\'ed\'e8\'e5 IP, \'e5\'f1\'eb\'e8 MAC \'f3\'e6\'e5 \'f1\'f3\'f9\'e5\'f1\'f2\'e2\'f3\'e5\'f2, \'ed\'ee IP \'e8\'e7\'ec\'e5\'ed\'e8\'eb\'f1\'ff.\par
+\par
+\'c2\'e0\'e6\'ed\'fb\'e9 \'ec\'ee\'ec\'e5\'ed\'f2\par
+\'c2 \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e5 \'e5\'f1\'f2\'fc UDP \'ed\'e0 \'ef\'ee\'f0\'f2\'f3 4210 \'e8 \'f1\'f2\'f0\'ee\'ea\'e0 \'ee\'f2\'e2\'e5\'f2\'e0 ESP32 found!, \'ed\'ee \'e2 \'f2\'e5\'ea\'f3\'f9\'e5\'ec \'ea\'eb\'e8\'e5\'ed\'f2\'e5 \'ff \'ed\'e5 \'f3\'e2\'e8\'e4\'e5\'eb \'ee\'f2\'e4\'e5\'eb\'fc\'ed\'ee\'e9 \'f0\'e5\'e0\'eb\'e8\'e7\'e0\'f6\'e8\'e8 \'f1\'e5\'f2\'e5\'e2\'ee\'e3\'ee discovery \'f7\'e5\'f0\'e5\'e7 UDP. \'c2 \'e1\'f3\'e4\'f3\'f9\'e5\'ec \'ec\'ee\'e6\'ed\'ee \'e8\'f1\'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'fc \'fd\'f2\'ee \'e4\'eb\'ff \'e0\'e2\'f2\'ee\'ee\'e1\'ed\'e0\'f0\'f3\'e6\'e5\'ed\'e8\'ff, \'ed\'ee \'e4\'eb\'ff Windows/Electron \'fd\'f2\'ee \'eb\'f3\'f7\'f8\'e5 \'e4\'e5\'eb\'e0\'f2\'fc \'e2 main-process, \'e0 \'ed\'e5 \'e2 renderer.\par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'c4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'f1\'f2\'e0\'ed\'e5\'f2 \'ee\'f2\'e4\'e5\'eb\'fc\'ed\'fb\'ec \'ec\'ee\'e4\'f3\'eb\'e5\'ec, \'e0 AddDeviceDialog.vue \'ee\'f1\'f2\'e0\'ed\'e5\'f2\'f1\'ff \'f2\'ee\'eb\'fc\'ea\'ee \'f4\'ee\'f0\'ec\'ee\'e9.\par
+\par
+\'dd\'f2\'e0\'ef 9. \'cf\'e5\'f0\'e5\'ed\'e5\'f1\'f2\'e8 \'f2\'ff\'e6\'b8\'eb\'fb\'e5 \'f1\'e5\'f2\'e5\'e2\'fb\'e5 \'ee\'ef\'e5\'f0\'e0\'f6\'e8\'e8 \'e2 Electron main-process\par
+\'d6\'e5\'eb\'fc: \'f0\'e0\'e7\'e3\'f0\'f3\'e7\'e8\'f2\'fc renderer \'e8 \'f6\'e5\'ed\'f2\'f0\'e0\'eb\'e8\'e7\'ee\'e2\'e0\'f2\'fc \'f1\'e5\'f2\'e5\'e2\'ee\'e9 \'e4\'ee\'f1\'f2\'f3\'ef.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 renderer \'ee\'e1\'f0\'e0\'f9\'e0\'e5\'f2\'f1\'ff \'ea \'eb\'ee\'ea\'e0\'eb\'fc\'ed\'ee\'ec\'f3 Express-proxy, \'e0 proxy \'f3\'e6\'e5 \'ed\'e0\'f5\'ee\'e4\'e8\'f2\'f1\'ff \'e2 src/main/index.js.  \'ce\'ed \'e4\'ee\'e1\'e0\'e2\'eb\'ff\'e5\'f2 \'e0\'e2\'f2\'ee\'f0\'e8\'e7\'e0\'f6\'e8\'fe, \'ef\'f0\'ee\'ea\'f1\'e8\'f0\'f3\'e5\'f2 \'e7\'e0\'ef\'f0\'ee\'f1 \'ea ESP32 \'e8 \'e2\'ee\'e7\'e2\'f0\'e0\'f9\'e0\'e5\'f2 \'ee\'f2\'e2\'e5\'f2. \par
+\par
+\'c2\'e0\'f0\'e8\'e0\'ed\'f2 A \f1\emdash  \f0\'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc proxy\par
+\'d1\'e0\'ec\'fb\'e9 \'e1\'e5\'e7\'ee\'ef\'e0\'f1\'ed\'fb\'e9 \'ef\'f3\'f2\'fc:\par
+\par
+\'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc {{\field{\*\fldinst{HYPERLINK http://localhost:3000/proxy/:ip }}{\fldrslt{http://localhost:3000/proxy/:ip\ul0\cf0}}}}\f0\fs22 ;\par
+\par
+ApiService \'f0\'e0\'e1\'ee\'f2\'e0\'e5\'f2 \'f7\'e5\'f0\'e5\'e7 proxy;\par
+\par
+\'ee\'f7\'e5\'f0\'e5\'e4\'fc \'e6\'e8\'e2\'b8\'f2 \'e2 renderer.\par
+\par
+\'c2\'e0\'f0\'e8\'e0\'ed\'f2 B \f1\emdash  \f0\'eb\'f3\'f7\'f8\'e5 \'e4\'eb\'ff \'ec\'e0\'f1\'f8\'f2\'e0\'e1\'e8\'f0\'ee\'e2\'e0\'ed\'e8\'ff\par
+\'cf\'e5\'f0\'e5\'ed\'e5\'f1\'f2\'e8 DeviceManager \'e8 RequestQueue \'e2 main-process:\par
+\par
+renderer \'e2\'fb\'e7\'fb\'e2\'e0\'e5\'f2 IPC;\par
+\par
+main-process \'e4\'e5\'eb\'e0\'e5\'f2 \'e7\'e0\'ef\'f0\'ee\'f1\'fb \'ea ESP32;\par
+\par
+renderer \'ef\'ee\'eb\'f3\'f7\'e0\'e5\'f2 \'f1\'ee\'e1\'fb\'f2\'e8\'ff \'f1\'f2\'e0\'f2\'f3\'f1\'e0 \'f7\'e5\'f0\'e5\'e7 IPC;\par
+\par
+\'e0\'e2\'f2\'ee\'f0\'e8\'e7\'e0\'f6\'e8\'ff \'e8 storage \'ed\'e0\'f5\'ee\'e4\'ff\'f2\'f1\'ff \'f0\'ff\'e4\'ee\'ec \'f1 \'f1\'e5\'f2\'e5\'e2\'fb\'ec \'f1\'eb\'ee\'e5\'ec.\par
+\par
+\'cf\'eb\'fe\'f1\'fb:\par
+\par
+\'ec\'e5\'ed\'fc\'f8\'e5 \'f1\'e5\'f2\'e5\'e2\'ee\'e9 \'eb\'ee\'e3\'e8\'ea\'e8 \'e2 UI;\par
+\par
+\'eb\'e5\'e3\'f7\'e5 \'ea\'ee\'ed\'f2\'f0\'ee\'eb\'e8\'f0\'ee\'e2\'e0\'f2\'fc \'ee\'f7\'e5\'f0\'e5\'e4\'fc;\par
+\par
+\'ec\'ee\'e6\'ed\'ee \'ed\'e5 \'e3\'ee\'ed\'ff\'f2\'fc 200 \'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2 \'f7\'e5\'f0\'e5\'e7 renderer;\par
+\par
+\'ec\'e5\'ed\'fc\'f8\'e5 CORS/proxy-\'ee\'f1\'ee\'e1\'e5\'ed\'ed\'ee\'f1\'f2\'e5\'e9.\par
+\par
+\'cc\'e8\'ed\'f3\'f1\'fb:\par
+\par
+\'e1\'ee\'eb\'fc\'f8\'e5 \'f0\'e5\'f4\'e0\'ea\'f2\'ee\'f0\'e8\'ed\'e3;\par
+\par
+\'ed\'f3\'e6\'ed\'ee \'e0\'ea\'ea\'f3\'f0\'e0\'f2\'ed\'ee \'f1\'ef\'f0\'ee\'e5\'ea\'f2\'e8\'f0\'ee\'e2\'e0\'f2\'fc IPC.\par
+\par
+\'d0\'e5\'ea\'ee\'ec\'e5\'ed\'e4\'e0\'f6\'e8\'ff\par
+\'cd\'e0\'f7\'e0\'f2\'fc \'f1 \'e2\'e0\'f0\'e8\'e0\'ed\'f2\'e0 A, \'ef\'ee\'f2\'ee\'ec\'f3 \'f7\'f2\'ee \'ee\'ed \'ec\'e5\'ed\'fc\'f8\'e5 \'eb\'ee\'ec\'e0\'e5\'f2 \'f2\'e5\'ea\'f3\'f9\'f3\'fe \'e0\'f0\'f5\'e8\'f2\'e5\'ea\'f2\'f3\'f0\'f3. \'cf\'ee\'f1\'eb\'e5 \'f1\'f2\'e0\'e1\'e8\'eb\'e8\'e7\'e0\'f6\'e8\'e8 \'ec\'ee\'e6\'ed\'ee \'ef\'e5\'f0\'e5\'e9\'f2\'e8 \'ea \'e2\'e0\'f0\'e8\'e0\'ed\'f2\'f3 B.\par
+\par
+\'dd\'f2\'e0\'ef 10. \'ce\'ef\'f2\'e8\'ec\'e8\'e7\'e8\'f0\'ee\'e2\'e0\'f2\'fc \'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5 \'e8 \'e3\'f0\'f3\'ef\'ef\'ee\'e2\'fb\'e5 \'ea\'ee\'ec\'e0\'ed\'e4\'fb\par
+\'d6\'e5\'eb\'fc: \'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5 \'e8 \'e3\'f0\'f3\'ef\'ef\'ee\'e2\'fb\'e5 \'e4\'e5\'e9\'f1\'f2\'e2\'e8\'ff \'f2\'ee\'e6\'e5 \'e4\'ee\'eb\'e6\'ed\'fb \'e8\'e4\'f2\'e8 \'f7\'e5\'f0\'e5\'e7 \'ee\'f7\'e5\'f0\'e5\'e4\'fc.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 \'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5 \'ef\'f0\'e8 \'ed\'e0\'f1\'f2\'f3\'ef\'eb\'e5\'ed\'e8\'e8 \'f1\'ee\'e1\'fb\'f2\'e8\'ff \'ef\'ee\'eb\'f3\'f7\'e0\'e5\'f2 \'f6\'e5\'eb\'e5\'e2\'fb\'e5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'e8 \'ef\'ee\'f1\'eb\'e5\'e4\'ee\'e2\'e0\'f2\'e5\'eb\'fc\'ed\'ee \'e2\'fb\'e7\'fb\'e2\'e0\'e5\'f2 sendScheduledAction \'e4\'eb\'ff \'ea\'e0\'e6\'e4\'ee\'e3\'ee \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0.  \'c2\'ed\'f3\'f2\'f0\'e8 \'e4\'e5\'e9\'f1\'f2\'e2\'e8\'ff \'ed\'e0\'ef\'f0\'ff\'ec\'f3\'fe \'ee\'f2\'ef\'f0\'e0\'e2\'eb\'ff\'fe\'f2\'f1\'ff HTTP-\'ea\'ee\'ec\'e0\'ed\'e4\'fb. \par
+\par
+\'d7\'f2\'ee \'e8\'e7\'ec\'e5\'ed\'e8\'f2\'fc\par
+\'d0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5 \'ed\'e5 \'e4\'ee\'eb\'e6\'ed\'ee \'ed\'e0\'ef\'f0\'ff\'ec\'f3\'fe \'e4\'e5\'eb\'e0\'f2\'fc fetch.\par
+\par
+\'c2\'f1\'e5 \'ea\'ee\'ec\'e0\'ed\'e4\'fb \'e4\'ee\'eb\'e6\'ed\'fb \'e8\'e4\'f2\'e8 \'f7\'e5\'f0\'e5\'e7 DeviceManager.\par
+\par
+\'c3\'f0\'f3\'ef\'ef\'ee\'e2\'fb\'ec \'ea\'ee\'ec\'e0\'ed\'e4\'e0\'ec \'ed\'f3\'e6\'e5\'ed \'e2\'fb\'f1\'ee\'ea\'e8\'e9 \'ef\'f0\'e8\'ee\'f0\'e8\'f2\'e5\'f2, \'ed\'ee \'f2\'ee\'e6\'e5 \'f1 \'ee\'e3\'f0\'e0\'ed\'e8\'f7\'e5\'ed\'e8\'e5\'ec concurrency.\par
+\par
+\'c4\'eb\'ff \'ec\'e0\'f1\'f1\'ee\'e2\'ee\'e3\'ee \'e4\'e5\'e9\'f1\'f2\'e2\'e8\'ff \'ed\'e0 200 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2:\par
+\par
+\'ef\'ee\'ea\'e0\'e7\'fb\'e2\'e0\'f2\'fc \'ef\'f0\'ee\'e3\'f0\'e5\'f1\'f1: 0/200, 20/200, failed: N;\par
+\par
+\'ed\'e5 \'e1\'eb\'ee\'ea\'e8\'f0\'ee\'e2\'e0\'f2\'fc UI;\par
+\par
+\'e4\'e0\'f2\'fc \'e2\'ee\'e7\'ec\'ee\'e6\'ed\'ee\'f1\'f2\'fc \'ee\'f2\'ec\'e5\'ed\'fb.\par
+\par
+\'cf\'ee\'f1\'eb\'e5 \'ea\'ee\'ec\'e0\'ed\'e4\'fb \'ed\'e5 \'ee\'ef\'f0\'e0\'f8\'e8\'e2\'e0\'f2\'fc \'f1\'f0\'e0\'e7\'f3 \'e2\'f1\'e5 200 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \f1\emdash  \f0\'ef\'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc staggered refresh.\par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'c3\'f0\'f3\'ef\'ef\'ee\'e2\'e0\'ff \'ee\'f2\'ef\'f0\'e0\'e2\'ea\'e0 playlist/audio command \'ed\'e5 \'e1\'f3\'e4\'e5\'f2 \'ef\'ee\'e4\'e2\'e5\'f8\'e8\'e2\'e0\'f2\'fc \'ef\'f0\'e8\'eb\'ee\'e6\'e5\'ed\'e8\'e5.\par
+\par
+\'dd\'f2\'e0\'ef 11. \'d3\'eb\'f3\'f7\'f8\'e8\'f2\'fc \'f5\'f0\'e0\'ed\'e5\'ed\'e8\'e5 \'e4\'e0\'ed\'ed\'fb\'f5\par
+\'d6\'e5\'eb\'fc: \'ee\'f2\'e4\'e5\'eb\'e8\'f2\'fc \'ea\'ee\'ed\'f4\'e8\'e3\'f3\'f0\'e0\'f6\'e8\'fe \'ee\'f2 runtime-\'f1\'f2\'e0\'f2\'f3\'f1\'e0.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 storage.js \'f5\'f0\'e0\'ed\'e8\'f2 modules, groups, scheduler \'e2 JSON-\'f4\'e0\'e9\'eb\'e5.  \'dd\'f2\'ee \'ef\'ee\'e4\'f5\'ee\'e4\'e8\'f2 \'e4\'eb\'ff \'ea\'ee\'ed\'f4\'e8\'e3\'f3\'f0\'e0\'f6\'e8\'e8, \'ed\'ee \'ed\'e5 \'e4\'eb\'ff \'e1\'fb\'f1\'f2\'f0\'fb\'f5 \'f1\'f2\'e0\'f2\'f3\'f1\'ee\'e2.\par
+\par
+\'d7\'f2\'ee \'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc \'e2 storage\par
+MAC;\par
+\par
+IP;\par
+\par
+name;\par
+\par
+login/password;\par
+\par
+group;\par
+\par
+\'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'e5\'eb\'fc\'f1\'ea\'e8\'e5 \'ed\'e0\'f1\'f2\'f0\'ee\'e9\'ea\'e8;\par
+\par
+scheduler;\par
+\par
+audio presets;\par
+\par
+playlists.\par
+\par
+\'d7\'f2\'ee \'ed\'e5 \'ef\'e8\'f1\'e0\'f2\'fc \'ef\'ee\'f1\'f2\'ee\'ff\'ed\'ed\'ee \'e2 storage\par
+available;\par
+\par
+wifiRssi;\par
+\par
+\'f2\'e5\'ea\'f3\'f9\'e8\'e9 audio state;\par
+\par
+now playing;\par
+\par
+\'e2\'f0\'e5\'ec\'e5\'ed\'ed\'fb\'e5 \'ee\'f8\'e8\'e1\'ea\'e8;\par
+\par
+failCount;\par
+\par
+lastSeenAt.\par
+\par
+\'c4\'ee\'ef\'ee\'eb\'ed\'e8\'f2\'e5\'eb\'fc\'ed\'ee\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'e2\'e5\'f0\'f1\'e8\'fe \'f1\'f5\'e5\'ec\'fb \'c1\'c4:\par
+\par
+\{\par
+  "schemaVersion": 2,\par
+  "modules": [],\par
+  "groups": [],\par
+  "scheduler": \{\}\par
+\}\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'ec\'e8\'e3\'f0\'e0\'f6\'e8\'fe \'f1\'f2\'e0\'f0\'ee\'e3\'ee \'f4\'ee\'f0\'ec\'e0\'f2\'e0, \'ef\'ee\'f2\'ee\'ec\'f3 \'f7\'f2\'ee normalizeDB \'f3\'e6\'e5 \'ef\'ee\'e4\'e4\'e5\'f0\'e6\'e8\'e2\'e0\'e5\'f2 \'f1\'f2\'e0\'f0\'fb\'e9 \'f4\'ee\'f0\'ec\'e0\'f2 \'ec\'e0\'f1\'f1\'e8\'e2\'e0. \par
+\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'d5\'f0\'e0\'ed\'e8\'eb\'e8\'f9\'e5 \'f1\'f2\'e0\'ed\'e5\'f2 \'f1\'f2\'e0\'e1\'e8\'eb\'fc\'ed\'fb\'ec \'e8 \'ed\'e5 \'e1\'f3\'e4\'e5\'f2 \'f3\'f7\'e0\'f1\'f2\'e2\'ee\'e2\'e0\'f2\'fc \'e2 \'e2\'fb\'f1\'ee\'ea\'ee\'f7\'e0\'f1\'f2\'ee\'f2\'ed\'fb\'f5 \'e8\'e7\'ec\'e5\'ed\'e5\'ed\'e8\'ff\'f5.\par
+\par
+\'dd\'f2\'e0\'ef 12. \'cd\'e0\'e1\'eb\'fe\'e4\'e0\'e5\'ec\'ee\'f1\'f2\'fc \'e8 \'e4\'e8\'e0\'e3\'ed\'ee\'f1\'f2\'e8\'ea\'e0\par
+\'d6\'e5\'eb\'fc: \'ef\'ee\'ed\'e8\'ec\'e0\'f2\'fc, \'f7\'f2\'ee \'ef\'f0\'ee\'e8\'f1\'f5\'ee\'e4\'e8\'f2 \'ef\'f0\'e8 200 \'ec\'ee\'e4\'f3\'eb\'ff\'f5.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'e2 DeviceManager\par
+\'ca\'ee\'eb\'e8\'f7\'e5\'f1\'f2\'e2\'ee \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2:\par
+\par
+total;\par
+\par
+online;\par
+\par
+offline.\par
+\par
+\'ce\'f7\'e5\'f0\'e5\'e4\'fc:\par
+\par
+active requests;\par
+\par
+pending requests;\par
+\par
+average response time;\par
+\par
+failed requests.\par
+\par
+\'cf\'ee\'f1\'eb\'e5\'e4\'ed\'ff\'ff \'ee\'f8\'e8\'e1\'ea\'e0 \'ef\'ee \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'f3.\par
+\par
+\'c2\'f0\'e5\'ec\'ff \'ef\'ee\'f1\'eb\'e5\'e4\'ed\'e5\'e3\'ee \'f3\'f1\'ef\'e5\'f8\'ed\'ee\'e3\'ee \'ee\'f2\'e2\'e5\'f2\'e0.\par
+\par
+\'d2\'e5\'ea\'f3\'f9\'e8\'e9 \'e8\'ed\'f2\'e5\'f0\'e2\'e0\'eb \'f1\'eb\'e5\'e4\'f3\'fe\'f9\'e5\'e3\'ee \'ee\'ef\'f0\'ee\'f1\'e0.\par
+\par
+\'c2 UI\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'ed\'e5\'e1\'ee\'eb\'fc\'f8\'ee\'e9 status bar:\par
+\par
+Devices: 200 | Online: 184 | Offline: 16 | Queue: 12 active / 43 pending\par
+\'d0\'e5\'e7\'f3\'eb\'fc\'f2\'e0\'f2 \'fd\'f2\'e0\'ef\'e0\par
+\'cf\'f0\'e8 \'ef\'f0\'ee\'e1\'eb\'e5\'ec\'e0\'f5 \'f1 \'f1\'e5\'f2\'fc\'fe \'e8\'eb\'e8 ESP32 \'e1\'f3\'e4\'e5\'f2 \'ef\'ee\'ed\'ff\'f2\'ed\'ee, \'e3\'e4\'e5 \'f3\'e7\'ea\'ee\'e5 \'ec\'e5\'f1\'f2\'ee.\par
+\par
+\'dd\'f2\'e0\'ef 13. \'c2\'ee\'e7\'ec\'ee\'e6\'ed\'ee\'e5 \'f3\'eb\'f3\'f7\'f8\'e5\'ed\'e8\'e5 \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e8 ESP32\par
+\'d6\'e5\'eb\'fc: \'f1\'e4\'e5\'eb\'e0\'f2\'fc HTTP polling \'e4\'e5\'f8\'e5\'e2\'eb\'e5, \'e5\'f1\'eb\'e8 \'ea\'eb\'e8\'e5\'ed\'f2\'f3 \'e2\'f1\'b8 \'e5\'f9\'b8 \'f2\'ff\'e6\'e5\'eb\'ee.\par
+\par
+\'d1\'e5\'e9\'f7\'e0\'f1 /status \'f3\'e6\'e5 \'e4\'ee\'f1\'f2\'e0\'f2\'ee\'f7\'ed\'ee \'ef\'ee\'eb\'e5\'e7\'ed\'fb\'e9 \'e8 \'ea\'ee\'ec\'ef\'e0\'ea\'f2\'ed\'fb\'e9: \'ee\'ed \'ee\'f2\'e4\'e0\'b8\'f2 relays, WiFi RSSI \'e8 audio state \'ee\'e4\'ed\'e8\'ec JSON. \par
+\par
+\'c2\'ee\'e7\'ec\'ee\'e6\'ed\'fb\'e5 \'e4\'ee\'f0\'e0\'e1\'ee\'f2\'ea\'e8 \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e8 \'ef\'ee\'e7\'e6\'e5\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc firmwareVersion.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc uptime.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc deviceName \'e2 /status, \'e5\'f1\'eb\'e8 \'fd\'f2\'ee \'ed\'e5 \'f3\'e2\'e5\'eb\'e8\'f7\'e8\'f2 \'ed\'e0\'e3\'f0\'f3\'e7\'ea\'f3 \'ea\'f0\'e8\'f2\'e8\'f7\'ed\'ee.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc changedSince \'e8\'eb\'e8 statusVersion, \'f7\'f2\'ee\'e1\'fb \'ea\'eb\'e8\'e5\'ed\'f2 \'ec\'ee\'e3 \'ef\'ee\'ed\'e8\'ec\'e0\'f2\'fc, \'e8\'e7\'ec\'e5\'ed\'e8\'eb\'ee\'f1\'fc \'eb\'e8 \'f1\'ee\'f1\'f2\'ee\'ff\'ed\'e8\'e5.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc SSE/WebSocket \'f2\'ee\'eb\'fc\'ea\'ee \'e5\'f1\'eb\'e8 HTTP polling \'f1 \'ee\'f7\'e5\'f0\'e5\'e4\'fc\'fe \'ee\'ea\'e0\'e6\'e5\'f2\'f1\'ff \'ed\'e5\'e4\'ee\'f1\'f2\'e0\'f2\'ee\'f7\'ed\'fb\'ec.\par
+\par
+\'c2\'e0\'e6\'ed\'ee\par
+\'cf\'e5\'f0\'e5\'f5\'ee\'e4 \'ed\'e0 WebSocket/SSE \'eb\'f3\'f7\'f8\'e5 \'e4\'e5\'eb\'e0\'f2\'fc \'ef\'ee\'f1\'eb\'e5\'e4\'ed\'e8\'ec \'fd\'f2\'e0\'ef\'ee\'ec. \'dd\'f2\'ee \'f1\'ee\'e2\'ef\'e0\'e4\'e0\'e5\'f2 \'f1 \'f0\'e5\'ea\'ee\'ec\'e5\'ed\'e4\'e0\'f6\'e8\'e5\'e9 mod.rtf: \'f1\'ed\'e0\'f7\'e0\'eb\'e0 \'ee\'f7\'e5\'f0\'e5\'e4\'fc, \'ea\'fd\'f8 \'e8 \'ee\'ef\'f2\'e8\'ec\'e8\'e7\'e0\'f6\'e8\'ff HTTP, \'e8 \'f2\'ee\'eb\'fc\'ea\'ee \'e5\'f1\'eb\'e8 \'ee\'e1\'fb\'f7\'ed\'ee\'e3\'ee HTTP-\'ee\'ef\'f0\'ee\'f1\'e0 \'ed\'e5\'e4\'ee\'f1\'f2\'e0\'f2\'ee\'f7\'ed\'ee \f1\emdash  \f0\'ef\'e5\'f0\'e5\'f5\'ee\'e4\'e8\'f2\'fc \'ed\'e0 WebSocket/SSE. \par
+\par
+\'d0\'e5\'ea\'ee\'ec\'e5\'ed\'e4\'f3\'e5\'ec\'e0\'ff \'ef\'ee\'f1\'eb\'e5\'e4\'ee\'e2\'e0\'f2\'e5\'eb\'fc\'ed\'ee\'f1\'f2\'fc \'f0\'e0\'e1\'ee\'f2\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 1 \f1\emdash  \f0\'e1\'e5\'e7\'ee\'ef\'e0\'f1\'ed\'fb\'e9 \'f0\'e5\'f4\'e0\'ea\'f2\'ee\'f0\'e8\'ed\'e3 \'e1\'e5\'e7 \'e8\'e7\'ec\'e5\'ed\'e5\'ed\'e8\'ff \'ef\'ee\'e2\'e5\'e4\'e5\'ed\'e8\'ff\par
+\'d1\'ee\'e7\'e4\'e0\'f2\'fc ApiService.\par
+\par
+\'cf\'e5\'f0\'e5\'ed\'e5\'f1\'f2\'e8 \'f2\'f3\'e4\'e0 \'e2\'f1\'e5 \'ef\'f0\'ff\'ec\'fb\'e5 fetch \'ea ESP32.\par
+\par
+\'ce\'f1\'f2\'e0\'e2\'e8\'f2\'fc UI \'e8 \'e8\'ed\'f2\'e5\'f0\'e2\'e0\'eb\'fb \'ea\'e0\'ea \'e5\'f1\'f2\'fc.\par
+\par
+\'cf\'f0\'ee\'e2\'e5\'f0\'e8\'f2\'fc npm run build.\par
+\par
+\'d0\'f3\'f7\'ed\'ee\'e9 smoke-test.\par
+\par
+\'d0\'e8\'f1\'ea: \'ed\'e8\'e7\'ea\'e8\'e9.\par
+\'cf\'ee\'eb\'fc\'e7\'e0: \'ea\'ee\'e4 \'f1\'f2\'e0\'ed\'e5\'f2 \'f3\'ef\'f0\'e0\'e2\'eb\'ff\'e5\'ec\'fb\'ec.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 2 \f1\emdash  \f0\'ee\'f7\'e5\'f0\'e5\'e4\'fc \'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2\par
+\'d1\'ee\'e7\'e4\'e0\'f2\'fc RequestQueue.\par
+\par
+\'cf\'ee\'e4\'ea\'eb\'fe\'f7\'e8\'f2\'fc \'ee\'f7\'e5\'f0\'e5\'e4\'fc \'f2\'ee\'eb\'fc\'ea\'ee \'ea /status.\par
+\par
+\'cf\'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc concurrency 20.\par
+\par
+\'cf\'f0\'ee\'e2\'e5\'f0\'e8\'f2\'fc \'ed\'e0 \'f2\'e5\'f1\'f2\'ee\'e2\'ee\'ec \'f1\'ef\'e8\'f1\'ea\'e5 \'e8\'e7 200 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'f1\'f2\'e0\'f2\'e8\'f1\'f2\'e8\'ea\'f3 \'ee\'f7\'e5\'f0\'e5\'e4\'e8 \'e2 console/debug.\par
+\par
+\'d0\'e8\'f1\'ea: \'f1\'f0\'e5\'e4\'ed\'e8\'e9.\par
+\'cf\'ee\'eb\'fc\'e7\'e0: \'ee\'f1\'ed\'ee\'e2\'ed\'ee\'e9 \'ef\'f0\'e8\'f0\'ee\'f1\'f2 \'f1\'f2\'e0\'e1\'e8\'eb\'fc\'ed\'ee\'f1\'f2\'e8.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 3 \f1\emdash  DeviceManager\par
+\f0\'d1\'ee\'e7\'e4\'e0\'f2\'fc DeviceManager.\par
+\par
+\'cf\'e5\'f0\'e5\'ed\'e5\'f1\'f2\'e8 \'f2\'f3\'e4\'e0:\par
+\par
+\'e7\'e0\'e3\'f0\'f3\'e7\'ea\'f3 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2;\par
+\par
+\'ef\'e5\'f0\'e8\'ee\'e4\'e8\'f7\'e5\'f1\'ea\'e8\'e9 polling;\par
+\par
+online/offline;\par
+\par
+\'ef\'f0\'e8\'ec\'e5\'ed\'e5\'ed\'e8\'e5 /status;\par
+\par
+runtime-\'ea\'fd\'f8.\par
+\par
+App.vue \'ee\'f1\'f2\'e0\'e2\'e8\'f2\'fc \'ef\'ee\'e4\'ef\'e8\'f1\'f7\'e8\'ea\'ee\'ec \'f1\'ee\'f1\'f2\'ee\'ff\'ed\'e8\'ff.\par
+\par
+\'d3\'e1\'f0\'e0\'f2\'fc \'e4\'f3\'e1\'eb\'e8\'f0\'f3\'fe\'f9\'e8\'e5\'f1\'ff \'ec\'e5\'f2\'ee\'e4\'fb \'e8\'e7 App.vue; \'f1\'e5\'e9\'f7\'e0\'f1 \'f2\'e0\'ec \'e4\'e2\'e0\'e6\'e4\'fb \'ef\'f0\'e8\'f1\'f3\'f2\'f1\'f2\'e2\'f3\'fe\'f2 \'ef\'ee\'f5\'ee\'e6\'e8\'e5 \'e1\'eb\'ee\'ea\'e8 readModuleStatus, applyModuleStatus, wifiSignalLabel, playbackStateLabel \'e8 \'f1\'e2\'ff\'e7\'e0\'ed\'ed\'fb\'e5 \'ec\'e5\'f2\'ee\'e4\'fb. \par
+\par
+\'d0\'e8\'f1\'ea: \'f1\'f0\'e5\'e4\'ed\'e8\'e9.\par
+\'cf\'ee\'eb\'fc\'e7\'e0: \'e0\'f0\'f5\'e8\'f2\'e5\'ea\'f2\'f3\'f0\'e0 \'f1\'f2\'e0\'ed\'e5\'f2 \'ef\'f0\'e8\'e3\'ee\'e4\'ed\'ee\'e9 \'e4\'eb\'ff 200 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 4 \f1\emdash  \f0\'f3\'ec\'ed\'fb\'e9 polling \'e8 backoff\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc nextPollAt.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'f0\'e0\'e7\'ed\'fb\'e5 \'e8\'ed\'f2\'e5\'f0\'e2\'e0\'eb\'fb \'e4\'eb\'ff online/offline/selected.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc backoff \'e4\'eb\'ff offline.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc high-priority refresh \'ef\'ee\'f1\'eb\'e5 \'ea\'ee\'ec\'e0\'ed\'e4.\par
+\par
+\'d0\'e8\'f1\'ea: \'f1\'f0\'e5\'e4\'ed\'e8\'e9.\par
+\'cf\'ee\'eb\'fc\'e7\'e0: \'f1\'ed\'e8\'e6\'e5\'ed\'e8\'e5 \'ef\'ee\'f1\'f2\'ee\'ff\'ed\'ed\'ee\'e9 \'f1\'e5\'f2\'e5\'e2\'ee\'e9 \'ed\'e0\'e3\'f0\'f3\'e7\'ea\'e8.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 5 \f1\emdash  \f0\'e3\'f0\'f3\'ef\'ef\'ee\'e2\'fb\'e5 \'ee\'ef\'e5\'f0\'e0\'f6\'e8\'e8 \'e8 \'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5 \'f7\'e5\'f0\'e5\'e7 \'ee\'f7\'e5\'f0\'e5\'e4\'fc\par
+\'cf\'e5\'f0\'e5\'e2\'e5\'f1\'f2\'e8 scheduler-\'ea\'ee\'ec\'e0\'ed\'e4\'fb \'ed\'e0 DeviceManager.\par
+\par
+\'cf\'e5\'f0\'e5\'e2\'e5\'f1\'f2\'e8 \'e3\'f0\'f3\'ef\'ef\'ee\'e2\'fb\'e5 \'ea\'ee\'ec\'e0\'ed\'e4\'fb \'ed\'e0 \'ee\'f7\'e5\'f0\'e5\'e4\'fc.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'ef\'f0\'ee\'e3\'f0\'e5\'f1\'f1 \'ec\'e0\'f1\'f1\'ee\'e2\'fb\'f5 \'ee\'ef\'e5\'f0\'e0\'f6\'e8\'e9.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'ee\'e1\'f0\'e0\'e1\'ee\'f2\'ea\'f3 \'f7\'e0\'f1\'f2\'e8\'f7\'ed\'fb\'f5 \'ee\'f8\'e8\'e1\'ee\'ea.\par
+\par
+\'d0\'e8\'f1\'ea: \'f1\'f0\'e5\'e4\'ed\'e8\'e9.\par
+\'cf\'ee\'eb\'fc\'e7\'e0: \'ec\'e0\'f1\'f1\'ee\'e2\'ee\'e5 \'f3\'ef\'f0\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'f1\'f2\'e0\'ed\'e5\'f2 \'e1\'e5\'e7\'ee\'ef\'e0\'f1\'ed\'fb\'ec.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 6 \f1\emdash  UI-\f0\'ee\'ef\'f2\'e8\'ec\'e8\'e7\'e0\'f6\'e8\'ff \'ea\'e0\'f0\'f2\'ee\'f7\'e5\'ea\par
+\'c2\'fb\'ed\'e5\'f1\'f2\'e8 \'ea\'e0\'f0\'f2\'ee\'f7\'ea\'f3 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'e2 \'ee\'f2\'e4\'e5\'eb\'fc\'ed\'fb\'e9 \'ea\'ee\'ec\'ef\'ee\'ed\'e5\'ed\'f2 \'e8\'eb\'e8 \'f3\'ed\'e8\'f4\'e8\'f6\'e8\'f0\'ee\'e2\'e0\'f2\'fc \'f1 \'f1\'f3\'f9\'e5\'f1\'f2\'e2\'f3\'fe\'f9\'e8\'ec DeviceCard.vue.\par
+\par
+\'ce\'e3\'f0\'e0\'ed\'e8\'f7\'e8\'f2\'fc \'ef\'e5\'f0\'e5\'f0\'e8\'f1\'ee\'e2\'ea\'e8.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'e2\'e8\'f0\'f2\'f3\'e0\'eb\'e8\'e7\'e0\'f6\'e8\'fe \'f2\'ee\'eb\'fc\'ea\'ee \'ef\'f0\'e8 \'ed\'e5\'ee\'e1\'f5\'ee\'e4\'e8\'ec\'ee\'f1\'f2\'e8.\par
+\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc status bar \'ef\'ee \'ee\'f7\'e5\'f0\'e5\'e4\'e8 \'e8 online/offline.\par
+\par
+\'d0\'e8\'f1\'ea: \'ed\'e8\'e7\'ea\'e8\'e9/\'f1\'f0\'e5\'e4\'ed\'e8\'e9.\par
+\'cf\'ee\'eb\'fc\'e7\'e0: \'ee\'f2\'e7\'fb\'e2\'f7\'e8\'e2\'fb\'e9 \'e8\'ed\'f2\'e5\'f0\'f4\'e5\'e9\'f1.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 7 \f1\emdash  DiscoveryService \f0\'e8 \'f3\'eb\'f3\'f7\'f8\'e5\'ed\'e8\'e5 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'ff \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\par
+\'c2\'fb\'ed\'e5\'f1\'f2\'e8 /identify \'e2 DiscoveryService.\par
+\par
+\'cf\'f0\'ee\'e2\'e5\'f0\'ff\'f2\'fc \'e4\'f3\'e1\'eb\'e8 \'ef\'ee MAC.\par
+\par
+\'ce\'e1\'ed\'ee\'e2\'eb\'ff\'f2\'fc IP \'ef\'f0\'e8 \'f1\'ee\'e2\'ef\'e0\'e4\'e5\'ed\'e8\'e8 MAC.\par
+\par
+\'cf\'ee\'e7\'e6\'e5 \'e4\'ee\'e1\'e0\'e2\'e8\'f2\'fc UDP discovery, \'e5\'f1\'eb\'e8 \'ed\'f3\'e6\'ed\'ee.\par
+\par
+\'d0\'e8\'f1\'ea: \'ed\'e8\'e7\'ea\'e8\'e9.\par
+\'cf\'ee\'eb\'fc\'e7\'e0: \'f3\'e4\'ee\'e1\'ed\'e5\'e5 \'f1\'ee\'ef\'f0\'ee\'e2\'ee\'e6\'e4\'e0\'f2\'fc \'ee\'e1\'ed\'e0\'f0\'f3\'e6\'e5\'ed\'e8\'e5 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2.\par
+\par
+\'d6\'e5\'eb\'e5\'e2\'e0\'ff \'e0\'f0\'f5\'e8\'f2\'e5\'ea\'f2\'f3\'f0\'e0 \'ef\'ee\'f1\'eb\'e5 \'ec\'ee\'e4\'e5\'f0\'ed\'e8\'e7\'e0\'f6\'e8\'e8\par
+Vue UI\par
+  \f2\u9500?\u9472?\f3\lang1033  App.vue\par
+  \f2\u9500?\u9472?\f3  DeviceCard.vue\par
+  \f2\u9500?\u9472?\f3  SchedulerPanel.vue\par
+  \f2\u9492?\u9472?\f3  dialogs\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+DeviceManager\par
+  \f2\u9500?\u9472?\f3  devices runtime state\par
+  \f2\u9500?\u9472?\f3  polling scheduler\par
+  \f2\u9500?\u9472?\f3  online/offline/backoff\par
+  \f2\u9500?\u9472?\f3  group/scheduler commands\par
+  \f2\u9492?\u9472?\f3  cache\par
+        \f2\u9474?\f3\par
+        \f2\u9500?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9658?\f3  DeviceStore / storageAPI\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+RequestQueue\par
+  \f2\u9500?\u9472?\f3  max concurrency 20\par
+  \f2\u9500?\u9472?\f3  priorities\par
+  \f2\u9500?\u9472?\f3  dedup status tasks\par
+  \f2\u9492?\u9472?\f3  cancellation\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+ApiService\par
+  \f2\u9500?\u9472?\f3  getStatus\par
+  \f2\u9500?\u9472?\f3  identify\par
+  \f2\u9500?\u9472?\f3  setAudioUrl\par
+  \f2\u9500?\u9472?\f3  sendPlaylist\par
+  \f2\u9500?\u9472?\f3  audioCommand\par
+  \f2\u9492?\u9472?\f3  relay/access methods\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+Electron proxy / main process\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+ESP32-S3 modules\par
+\f0\lang1058\'cf\'f0\'e8\'ee\'f0\'e8\'f2\'e5\'f2\'fb \'f0\'e5\'e0\'eb\'e8\'e7\'e0\'f6\'e8\'e8\par
+\'ce\'e1\'ff\'e7\'e0\'f2\'e5\'eb\'fc\'ed\'ee\par
+ApiService.\par
+\par
+RequestQueue \'f1 \'eb\'e8\'ec\'e8\'f2\'ee\'ec 20.\par
+\par
+DeviceManager.\par
+\par
+Backoff \'e4\'eb\'ff offline.\par
+\par
+\'cd\'e5 \'f5\'f0\'e0\'ed\'e8\'f2\'fc runtime-\'f1\'f2\'e0\'f2\'f3\'f1\'fb \'e2 JSON.\par
+\par
+\'ca\'ee\'ec\'e0\'ed\'e4\'fb \'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'ff \'e8 \'e3\'f0\'f3\'ef\'ef \f1\emdash  \f0\'f7\'e5\'f0\'e5\'e7 \'ee\'f7\'e5\'f0\'e5\'e4\'fc.\par
+\par
+\'c6\'e5\'eb\'e0\'f2\'e5\'eb\'fc\'ed\'ee\par
+UI status bar.\par
+\par
+\'c2\'e8\'f0\'f2\'f3\'e0\'eb\'e8\'e7\'e0\'f6\'e8\'ff \'f1\'ef\'e8\'f1\'ea\'e0.\par
+\par
+\'cf\'f0\'ee\'e3\'f0\'e5\'f1\'f1 \'ec\'e0\'f1\'f1\'ee\'e2\'fb\'f5 \'ee\'ef\'e5\'f0\'e0\'f6\'e8\'e9.\par
+\par
+DiscoveryService.\par
+\par
+\'cc\'e5\'f2\'f0\'e8\'ea\'e8 \'ee\'f7\'f0\'e5\'e4\'e8.\par
+\par
+\'cf\'ee\'e7\'e6\'e5, \'f2\'ee\'eb\'fc\'ea\'ee \'e5\'f1\'eb\'e8 \'ef\'ee\'f2\'f0\'e5\'e1\'f3\'e5\'f2\'f1\'ff\par
+\'cf\'e5\'f0\'e5\'ed\'ee\'f1 DeviceManager \'e2 Electron main-process.\par
+\par
+UDP discovery.\par
+\par
+WebSocket/SSE.\par
+\par
+\'c8\'e7\'ec\'e5\'ed\'e5\'ed\'e8\'ff \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e8 \'ef\'ee\'e4 push/statusVersion.\par
+\par
+\'cf\'f0\'ee\'e2\'e5\'f0\'ea\'e8, \'ea\'ee\'f2\'ee\'f0\'fb\'e5 \'ff \'e2\'fb\'ef\'ee\'eb\'ed\'e8\'eb\par
+\f2\u9989?\f3\lang1033  pwd && rg --files -g '!*node_modules*' | sed -n '1,200p' && find .. -name AGENTS.md -print\par
+\par
+\f2\u9989?\f3  python3 - <<'PY' ... \f0\lang1058\'ef\'f0\'ee\'f7\'e8\'f2\'e0\'eb mod.rtf, esp32.txt, App.vue, DeviceList.vue, DeviceCard.vue, main/index.js, preload.js, storage.js ... PY\par
+\par
+\f2\u9989?\f3\lang1033  python3 - <<'PY' ... \f0\lang1058\'ed\'e0\'f8\'b8\'eb \'ea\'eb\'fe\'f7\'e5\'e2\'fb\'e5 fetch/setInterval/status/proxy \'ec\'e5\'f1\'f2\'e0 \'e2 App.vue \'e8 \'ea\'ee\'ec\'ef\'ee\'ed\'e5\'ed\'f2\'e0\'f5 ... PY\par
+\par
+\f2\u9989?\f3\lang1033  python3 - <<'PY' ... \f0\lang1058\'e2\'fb\'e2\'e5\'eb \'f4\'f0\'e0\'e3\'ec\'e5\'ed\'f2\'fb App.vue, esp32.txt, main/index.js, storage.js, AddDeviceDialog.vue ... PY\par
+\par
+\f2\u9989?\f3\lang1033  cat package.json && git status --short\par
+\par
+UDP discovery \f0\lang1058\'ed\'e5 \'ed\'f3\'e6\'ed\'ee, \'ed\'f3\'e6\'ed\'ee \'f2\'ee\'eb\'fc\'ea\'ee \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'ef\'ee IP \'ea\'e0\'ea \'e5\'f1\'f2\'fc \'f1\'e5\'e9\'f7\'e0\'f1\par
+\'ca\'ee\'ef\'e8\'f0\'ee\'e2\'e0\'f2\'fc\par
+\'cf\'ee\'ed\'ff\'eb. \'d2\'ee\'e3\'e4\'e0 UDP discovery \'ef\'ee\'eb\'ed\'ee\'f1\'f2\'fc\'fe \'e8\'f1\'ea\'eb\'fe\'f7\'e0\'e5\'ec \'e8\'e7 \'ef\'eb\'e0\'ed\'e0 \'e8 \'ee\'f1\'f2\'e0\'e2\'eb\'ff\'e5\'ec \'f2\'ee\'eb\'fc\'ea\'ee \'f2\'e5\'ea\'f3\'f9\'f3\'fe \'ec\'ee\'e4\'e5\'eb\'fc: \'f0\'f3\'f7\'ed\'ee\'e5 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'ec\'ee\'e4\'f3\'eb\'ff \'ef\'ee IP \'f7\'e5\'f0\'e5\'e7 /identify, \'ea\'e0\'ea \'f1\'e5\'e9\'f7\'e0\'f1 \'f1\'e4\'e5\'eb\'e0\'ed\'ee \'e2 AddDeviceDialog.vue. \'ca\'ee\'ec\'ef\'ee\'ed\'e5\'ed\'f2 \'ef\'f0\'e8\'ed\'e8\'ec\'e0\'e5\'f2 IP, \'e4\'e5\'eb\'e0\'e5\'f2 \'e7\'e0\'ef\'f0\'ee\'f1 {{\field{\*\fldinst{HYPERLINK http://<ip>/identify }}{\fldrslt{http://<ip>/identify\ul0\cf0}}}}\f0\fs22 , \'ef\'f0\'ee\'e2\'e5\'f0\'ff\'e5\'f2 \'ec\'e0\'f0\'ea\'e5\'f0 ESP32-AUDIOCTRL, \'e8\'e7\'e2\'eb\'e5\'ea\'e0\'e5\'f2 MAC \'e8 NAME, \'e7\'e0\'f2\'e5\'ec \'f1\'ee\'f5\'f0\'e0\'ed\'ff\'e5\'f2 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'ee \'eb\'ee\'ea\'e0\'eb\'fc\'ed\'ee \'f7\'e5\'f0\'e5\'e7 window.storageAPI.upsertModule.  \'cd\'e0 \'f1\'f2\'ee\'f0\'ee\'ed\'e5 \'ef\'f0\'ee\'f8\'e8\'e2\'ea\'e8 endpoint /identify \'f3\'e6\'e5 \'ee\'f2\'e4\'e0\'b8\'f2 \'ed\'f3\'e6\'ed\'fb\'e9 \'f4\'ee\'f0\'ec\'e0\'f2 ESP32-AUDIOCTRL|MAC=...|NAME=.... \par
+\par
+\'c8\'f1\'ef\'f0\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'ef\'eb\'e0\'ed\'e0\par
+\'d3\'e4\'e0\'eb\'ff\'e5\'ec \'e8\'e7 \'ef\'eb\'e0\'ed\'e0\par
+\'c0\'e2\'f2\'ee\'f1\'ea\'e0\'ed\'e8\'f0\'ee\'e2\'e0\'ed\'e8\'e5 \'f1\'e5\'f2\'e8.\par
+\par
+UDP discovery.\par
+\par
+\'cf\'ee\'e8\'f1\'ea \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2 \'ef\'ee \'ef\'ee\'e4\'f1\'e5\'f2\'e8.\par
+\par
+\'d4\'ee\'ed\'ee\'e2\'ee\'e5 \'ee\'e1\'ed\'e0\'f0\'f3\'e6\'e5\'ed\'e8\'e5 \'ed\'ee\'e2\'fb\'f5 \'ec\'ee\'e4\'f3\'eb\'e5\'e9.\par
+\par
+\'cb\'fe\'e1\'f3\'fe \'f0\'e0\'e1\'ee\'f2\'f3 \'f1 UDP-\'ef\'ee\'f0\'f2\'ee\'ec 4210.\par
+\par
+\'ce\'f1\'f2\'e0\'e2\'eb\'ff\'e5\'ec\par
+\'c4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'f2\'ee\'eb\'fc\'ea\'ee \'e2\'f0\'f3\'f7\'ed\'f3\'fe \'ef\'ee IP.\par
+\par
+\'cf\'f0\'ee\'e2\'e5\'f0\'ea\'f3 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'e0 \'f7\'e5\'f0\'e5\'e7 /identify.\par
+\par
+\'cf\'e0\'f0\'f1\'e8\'ed\'e3 MAC \'e8 \'e8\'ec\'e5\'ed\'e8.\par
+\par
+\'cf\'f0\'ee\'e2\'e5\'f0\'ea\'f3 \'e4\'f3\'e1\'eb\'e5\'e9 \'ef\'ee MAC.\par
+\par
+\'ce\'e1\'ed\'ee\'e2\'eb\'e5\'ed\'e8\'e5 IP, \'e5\'f1\'eb\'e8 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'ee \'f1 \'f2\'e0\'ea\'e8\'ec MAC \'f3\'e6\'e5 \'e5\'f1\'f2\'fc, \'ed\'ee IP \'e8\'e7\'ec\'e5\'ed\'e8\'eb\'f1\'ff.\par
+\par
+\'d1\'ee\'f5\'f0\'e0\'ed\'e5\'ed\'e8\'e5 \'eb\'ee\'e3\'e8\'ed\'e0/\'ef\'e0\'f0\'ee\'eb\'ff, \'e5\'f1\'eb\'e8 \'ee\'ed\'e8 \'e2\'e2\'e5\'e4\'e5\'ed\'fb \'ef\'f0\'e8 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e8.\par
+\par
+\'ce\'e1\'ed\'ee\'e2\'eb\'b8\'ed\'ed\'fb\'e9 \'fd\'f2\'e0\'ef Discovery/AddDevice\par
+\'dd\'f2\'e0\'ef 8. \'d3\'ef\'f0\'ee\'f1\'f2\'e8\'f2\'fc \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e5 \'ef\'ee IP \'f7\'e5\'f0\'e5\'e7 DeviceRegistrationService\par
+\'c2\'ec\'e5\'f1\'f2\'ee DiscoveryService \'eb\'f3\'f7\'f8\'e5 \'ed\'e0\'e7\'e2\'e0\'f2\'fc \'ec\'ee\'e4\'f3\'eb\'fc \'f2\'ee\'f7\'ed\'e5\'e5:\par
+\par
+src/renderer/services/DeviceRegistrationService.js\par
+\'e8\'eb\'e8:\par
+\par
+src/renderer/services/AddDeviceService.js\par
+\'df \'e1\'fb \'e2\'fb\'e1\'f0\'e0\'eb DeviceRegistrationService.js, \'ef\'ee\'f2\'ee\'ec\'f3 \'f7\'f2\'ee \'ee\'ed \'ed\'e5 \'e1\'f3\'e4\'e5\'f2 \'ed\'e8\'f7\'e5\'e3\'ee \ldblquote\'e8\'f1\'ea\'e0\'f2\'fc\rdblquote  \'e2 \'f1\'e5\'f2\'e8, \'e0 \'f2\'ee\'eb\'fc\'ea\'ee \'f0\'e5\'e3\'e8\'f1\'f2\'f0\'e8\'f0\'ee\'e2\'e0\'f2\'fc \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'ee \'ef\'ee \'e8\'e7\'e2\'e5\'f1\'f2\'ed\'ee\'ec\'f3 IP.\par
+\par
+\'ce\'f2\'e2\'e5\'f2\'f1\'f2\'e2\'e5\'ed\'ed\'ee\'f1\'f2\'fc \'f1\'e5\'f0\'e2\'e8\'f1\'e0\par
+identifyByIp(ip)\par
+parseIdentifyResponse(text)\par
+buildModuleRecord(\{ ip, login, password, identifyData \})\par
+registerByIp(\{ ip, login, password \})\par
+\'cb\'ee\'e3\'e8\'ea\'e0\par
+\'cf\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'e5\'eb\'fc \'e2\'e2\'ee\'e4\'e8\'f2 IP.\par
+\par
+\'ca\'eb\'e8\'e5\'ed\'f2 \'e2\'fb\'e7\'fb\'e2\'e0\'e5\'f2:\par
+\par
+GET {{\field{\*\fldinst{HYPERLINK http://<ip>/identify }}{\fldrslt{http://<ip>/identify\ul0\cf0}}}}\f0\fs22\par
+\'cf\'f0\'ee\'e2\'e5\'f0\'ff\'e5\'f2\'f1\'ff, \'f7\'f2\'ee \'ee\'f2\'e2\'e5\'f2 \'f1\'ee\'e4\'e5\'f0\'e6\'e8\'f2:\par
+\par
+ESP32-AUDIOCTRL\par
+\'c8\'e7 \'ee\'f2\'e2\'e5\'f2\'e0 \'e8\'e7\'e2\'eb\'e5\'ea\'e0\'fe\'f2\'f1\'ff:\par
+\par
+MAC;\par
+\par
+NAME.\par
+\par
+\'c5\'f1\'eb\'e8 MAC \'ed\'e5 \'ed\'e0\'e9\'e4\'e5\'ed \f1\emdash  \f0\'ee\'f8\'e8\'e1\'ea\'e0.\par
+\par
+\'c5\'f1\'eb\'e8 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2\'ee \'f1 \'f2\'e0\'ea\'e8\'ec MAC \'f3\'e6\'e5 \'e5\'f1\'f2\'fc:\par
+\par
+\'ee\'e1\'ed\'ee\'e2\'e8\'f2\'fc IP;\par
+\par
+\'ee\'e1\'ed\'ee\'e2\'e8\'f2\'fc \'e8\'ec\'ff, \'e5\'f1\'eb\'e8 \'ed\'f3\'e6\'ed\'ee;\par
+\par
+\'ee\'e1\'ed\'ee\'e2\'e8\'f2\'fc login/password, \'e5\'f1\'eb\'e8 \'ef\'ee\'eb\'fc\'e7\'ee\'e2\'e0\'f2\'e5\'eb\'fc \'e8\'f5 \'e2\'e2\'b8\'eb.\par
+\par
+\'c5\'f1\'eb\'e8 MAC \'ed\'ee\'e2\'fb\'e9:\par
+\par
+\'e4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'ed\'ee\'e2\'f3\'fe \'e7\'e0\'ef\'e8\'f1\'fc.\par
+\par
+\'cf\'ee\'f1\'eb\'e5 \'f1\'ee\'f5\'f0\'e0\'ed\'e5\'ed\'e8\'ff \'e7\'e0\'ea\'f0\'fb\'f2\'fc \'e4\'e8\'e0\'eb\'ee\'e3 \'e8 \'ee\'e1\'ed\'ee\'e2\'e8\'f2\'fc \'f1\'ef\'e8\'f1\'ee\'ea \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2.\par
+\par
+\'d2\'e5\'ea\'f3\'f9\'e0\'ff \'f0\'e5\'e0\'eb\'e8\'e7\'e0\'f6\'e8\'ff \'f3\'e6\'e5 \'e4\'e5\'eb\'e0\'e5\'f2 \'ee\'f1\'ed\'ee\'e2\'ed\'fb\'e5 \'f8\'e0\'e3\'e8: \'e7\'e0\'ef\'f0\'e0\'f8\'e8\'e2\'e0\'e5\'f2 /identify, \'ef\'f0\'ee\'e2\'e5\'f0\'ff\'e5\'f2 ESP32-AUDIOCTRL, \'ef\'e0\'f0\'f1\'e8\'f2 MAC \'e8 NAME, \'f4\'ee\'f0\'ec\'e8\'f0\'f3\'e5\'f2 \'ee\'e1\'fa\'e5\'ea\'f2 \'ec\'ee\'e4\'f3\'eb\'ff \'e8 \'e2\'fb\'e7\'fb\'e2\'e0\'e5\'f2 upsertModule. \par
+\par
+\'ca\'e0\'ea \'fd\'f2\'ee \'e2\'eb\'e8\'ff\'e5\'f2 \'ed\'e0 \'ee\'e1\'f9\'e8\'e9 \'ef\'eb\'e0\'ed \'ec\'ee\'e4\'e5\'f0\'ed\'e8\'e7\'e0\'f6\'e8\'e8\par
+\'cf\'f0\'e8\'ee\'f0\'e8\'f2\'e5\'f2\'fb \'ee\'f1\'f2\'e0\'fe\'f2\'f1\'ff \'ef\'f0\'e5\'e6\'ed\'e8\'ec\'e8\par
+\'c3\'eb\'e0\'e2\'ed\'e0\'ff \'ee\'ef\'f2\'e8\'ec\'e8\'e7\'e0\'f6\'e8\'ff \'e2\'f1\'b8 \'f0\'e0\'e2\'ed\'ee \'ed\'e5 \'e2 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'e8 \'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2, \'e0 \'e2 \'ee\'ef\'f0\'ee\'f1\'e5 \'f3\'e6\'e5 \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'ed\'fb\'f5 200 \'ec\'ee\'e4\'f3\'eb\'e5\'e9.\par
+\par
+\'ce\'f1\'f2\'e0\'fe\'f2\'f1\'ff \'ee\'e1\'ff\'e7\'e0\'f2\'e5\'eb\'fc\'ed\'fb\'ec\'e8:\par
+\par
+ApiService.\par
+\par
+RequestQueue \'f1 \'eb\'e8\'ec\'e8\'f2\'ee\'ec \'ef\'f0\'e8\'ec\'e5\'f0\'ed\'ee 20 \'ef\'e0\'f0\'e0\'eb\'eb\'e5\'eb\'fc\'ed\'fb\'f5 \'e7\'e0\'ef\'f0\'ee\'f1\'ee\'e2.\par
+\par
+DeviceManager.\par
+\par
+\'d3\'ec\'ed\'fb\'e9 polling.\par
+\par
+Backoff \'e4\'eb\'ff offline-\'f3\'f1\'f2\'f0\'ee\'e9\'f1\'f2\'e2.\par
+\par
+\'ca\'fd\'f8 runtime-\'f1\'f2\'e0\'f2\'f3\'f1\'e0.\par
+\par
+\'cf\'e5\'f0\'e5\'e2\'ee\'e4 \'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'ff \'e8 \'e3\'f0\'f3\'ef\'ef\'ee\'e2\'fb\'f5 \'ea\'ee\'ec\'e0\'ed\'e4 \'ed\'e0 \'ee\'f7\'e5\'f0\'e5\'e4\'fc.\par
+\par
+\'d7\'f2\'ee \'ec\'e5\'ed\'ff\'e5\'f2\'f1\'ff\par
+\'c2\'ec\'e5\'f1\'f2\'ee \'fd\'f2\'e0\'ef\'e0:\par
+\par
+DiscoveryService \'e8 UDP discovery\par
+\par
+\'e1\'f3\'e4\'e5\'f2 \'fd\'f2\'e0\'ef:\par
+\par
+DeviceRegistrationService \'e4\'eb\'ff \'f0\'f3\'f7\'ed\'ee\'e3\'ee \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'ff \'ef\'ee IP\par
+\par
+\'ce\'e1\'ed\'ee\'e2\'eb\'b8\'ed\'ed\'e0\'ff \'f6\'e5\'eb\'e5\'e2\'e0\'ff \'e0\'f0\'f5\'e8\'f2\'e5\'ea\'f2\'f3\'f0\'e0\par
+Vue UI\par
+  \f2\u9500?\u9472?\f3\lang1033  App.vue\par
+  \f2\u9500?\u9472?\f3  AddDeviceDialog.vue\par
+  \f2\u9500?\u9472?\f3  DeviceCard.vue\par
+  \f2\u9500?\u9472?\f3  SchedulerPanel.vue\par
+  \f2\u9492?\u9472?\f3  dialogs\par
+        \f2\u9474?\f3\par
+        \f2\u9500?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9658?\f3  DeviceRegistrationService\par
+        \f2\u9474?\f3                    \f2\u9492?\u9472?\f3  identifyByIp(ip)\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+DeviceManager\par
+  \f2\u9500?\u9472?\f3  devices runtime state\par
+  \f2\u9500?\u9472?\f3  polling scheduler\par
+  \f2\u9500?\u9472?\f3  online/offline/backoff\par
+  \f2\u9500?\u9472?\f3  group/scheduler commands\par
+  \f2\u9492?\u9472?\f3  cache\par
+        \f2\u9474?\f3\par
+        \f2\u9500?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9472?\u9658?\f3  storageAPI\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+RequestQueue\par
+  \f2\u9500?\u9472?\f3  max concurrency 20\par
+  \f2\u9500?\u9472?\f3  priorities\par
+  \f2\u9500?\u9472?\f3  dedup status tasks\par
+  \f2\u9492?\u9472?\f3  cancellation\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+ApiService\par
+  \f2\u9500?\u9472?\f3  getStatus\par
+  \f2\u9500?\u9472?\f3  setAudioUrl\par
+  \f2\u9500?\u9472?\f3  sendPlaylist\par
+  \f2\u9500?\u9472?\f3  audioCommand\par
+  \f2\u9492?\u9472?\f3  other ESP32 HTTP methods\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+Electron proxy / main process\par
+        \f2\u9474?\f3\par
+        \f2\u9660?\f3\par
+ESP32-S3 modules\par
+\f0\lang1058\'ce\'e1\'ed\'ee\'e2\'eb\'b8\'ed\'ed\'e0\'ff \'ef\'ee\'f1\'eb\'e5\'e4\'ee\'e2\'e0\'f2\'e5\'eb\'fc\'ed\'ee\'f1\'f2\'fc \'f0\'e0\'e1\'ee\'f2\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 1\par
+\'d1\'ee\'e7\'e4\'e0\'f2\'fc ApiService \'e8 \'ef\'e5\'f0\'e5\'ed\'e5\'f1\'f2\'e8 \'f2\'f3\'e4\'e0 HTTP-\'e7\'e0\'ef\'f0\'ee\'f1\'fb \'ea ESP32.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 2\par
+\'d1\'ee\'e7\'e4\'e0\'f2\'fc RequestQueue \'e8 \'ef\'ee\'e4\'ea\'eb\'fe\'f7\'e8\'f2\'fc \'e5\'b8 \'ea /status.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 3\par
+\'d1\'ee\'e7\'e4\'e0\'f2\'fc DeviceManager, \'e2\'fb\'ed\'e5\'f1\'f2\'e8 \'f2\'f3\'e4\'e0 polling, online/offline, \'ea\'fd\'f8 \'e8 \'ef\'f0\'e8\'ec\'e5\'ed\'e5\'ed\'e8\'e5 \'f1\'f2\'e0\'f2\'f3\'f1\'e0.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 4\par
+\'c4\'ee\'e1\'e0\'e2\'e8\'f2\'fc \'f3\'ec\'ed\'fb\'e9 polling \'e8 backoff.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 5\par
+\'cf\'e5\'f0\'e5\'e2\'e5\'f1\'f2\'e8 \'f0\'e0\'f1\'ef\'e8\'f1\'e0\'ed\'e8\'e5 \'e8 \'ec\'e0\'f1\'f1\'ee\'e2\'fb\'e5 \'ea\'ee\'ec\'e0\'ed\'e4\'fb \'ed\'e0 DeviceManager + RequestQueue.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 6\par
+\'ce\'ef\'f2\'e8\'ec\'e8\'e7\'e8\'f0\'ee\'e2\'e0\'f2\'fc UI \'ea\'e0\'f0\'f2\'ee\'f7\'e5\'ea.\par
+\par
+\'c8\'f2\'e5\'f0\'e0\'f6\'e8\'ff 7\par
+\'d1\'ee\'e7\'e4\'e0\'f2\'fc DeviceRegistrationService \'f2\'ee\'eb\'fc\'ea\'ee \'e4\'eb\'ff \'f0\'f3\'f7\'ed\'ee\'e3\'ee \'e4\'ee\'e1\'e0\'e2\'eb\'e5\'ed\'e8\'ff \'ef\'ee IP.\par
+\f3\lang9\par
+
+\pard\sa200\sl276\slmult1\par
+}
+ 

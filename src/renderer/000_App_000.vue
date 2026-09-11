@@ -4,16 +4,8 @@
     <header class="top-nav">
       <button @click="activeTab = 'control'" :class="{ active: activeTab === 'control' }">Control</button>
       <button @click="activeTab = 'manage'" :class="{ active: activeTab === 'manage' }">Manage</button>
-      <button @click="openSettingsTab" :class="{ active: activeTab === 'settings' }">Settings</button>
-      <div class="search-wrapper">
-        <input
-          type="text"
-          v-model="searchQuery"
-          placeholder="Search..."
-          class="search-input"
-        />
-        <span class="search-count" title="Matched modules">{{ searchResultCount }}</span>
-      </div>
+      <button @click="activeTab = 'settings'" :class="{ active: activeTab === 'settings' }">Settings</button>
+      <input type="text" v-model="searchQuery" placeholder="Search modules..." class="search-input" />
     </header>
 
     <!-- Tab Panels -->
@@ -25,25 +17,28 @@
             :class="{ active: selectedGroup === 'All' }"
             @click="selectGroup('All')"
           >
-            All ({{ groupCounts.All }})
+            All
           </button>
           <button
             :class="{ active: selectedGroup === 'Offline' }"
             @click="selectGroup('Offline')"
           >
-            Offline ({{ groupCounts.Offline }})
+            Offline
           </button>
           <button
             :class="{ active: selectedGroup === 'NoGroup' }"
             @click="selectGroup('NoGroup')"
           >
-            No Group ({{ groupCounts.NoGroup }})
+            No Group
           </button>
-          <button @click="openGroupControl" :class="{ active: showGroupControlDialog }">
+          <button @click="openGroupControl">
             Group Control
           </button>
-          <button @click="openSingleModuleControl" :class="{ active: showSingleModuleControlDialog }">
-            Single module control
+          <button @click="toggleSetAudioInline" :class="{ active: showSetAudioInline }">
+            Set Stream URL (selected)
+          </button>
+          <button @click="toggleSetPlaylistInline" :class="{ active: showSetPlaylistInline }">
+            Set Playlist URL(selected)
           </button>
           <button
             v-for="group in deviceGroups"
@@ -51,9 +46,30 @@
             :class="{ active: selectedGroup === group }"
             @click="selectGroup(group)"
           >
-            {{ group }} ({{ groupCounts[group] || 0 }})
+            {{ group }}
           </button>
-        </div>        
+        </div>
+        <div v-if="showSetAudioInline" class="submenu inline-audio-panel">
+          <select v-model="selectedAudioUrl" class="inline-audio-input">
+            <option value="" disabled>Select saved stream...</option>
+            <option v-for="preset in schedulerAudioUrls" :key="preset.id" :value="preset.url">
+              {{ preset.name }} — {{ preset.url }}
+            </option>
+          </select>
+          <button @click="sendAudioUrlToSelected" :disabled="!selectedAudioUrl || !selectedDevice">Send</button>
+          <button @click="showSetAudioInline = false">Close</button>
+        </div>
+        <div v-if="showSetPlaylistInline" class="submenu inline-audio-panel">
+          <strong>Selected:</strong> {{ selectedDevice?.name || selectedDevice?.ip || '—' }}
+          <select v-model="selectedPlaylistId" class="inline-audio-input">
+            <option value="" disabled>Select saved playlist...</option>
+            <option v-for="playlist in schedulerPlaylists" :key="playlist.id" :value="playlist.id">
+              {{ playlist.name }} — {{ playlist.urls?.length || 0 }} URLs
+            </option>
+          </select>
+          <button @click="sendPlaylistToSelected" :disabled="!selectedPlaylistId || !selectedDevice">Send</button>
+          <button @click="showSetPlaylistInline = false">Close</button>
+        </div>
         <div class="main-content split">
           <div class="left-pane">
             <div class="device-list">
@@ -83,38 +99,17 @@
                   </span>                  
                   &nbsp; | &nbsp; <strong>WiFi:</strong> {{ wifiSignalLabel(device) }}
                   &nbsp; | &nbsp; <strong>Audio:</strong> {{ playbackStateLabel(device) }}
-                  &nbsp; | &nbsp; <strong>Now playing:</strong> {{ nowPlayingLabel(device) }}
-                  &nbsp; | &nbsp; <strong>Firmware:</strong> {{ firmwareLabel(device) }}
-                  &nbsp; | &nbsp; <strong>NTP:</strong> {{ ntpLabel(device) }}
-                  &nbsp; | &nbsp; <strong>Time:</strong> {{ timeLabel(device) }}
-                  &nbsp; | &nbsp; <strong>Work time:</strong> {{ workTimeLabel(device) }}
+                  <br>
+                  <strong>Now playing:</strong> {{ nowPlayingLabel(device) }}
+                  <br>                  
                 </p>
               </div>
             </div>
           </div>
 
           <div class="right-pane">
-            <GroupControlDialog
-              v-if="showGroupControlDialog"
-              :devices="devices"
-              :allGroups="allGroups"
-              :audioUrls="schedulerAudioUrls"
-              :playlists="schedulerPlaylists"
-              @notify="showNotification"
-              @log="addLog"
-              @close="closeGroupControl"
-            />
-            <SingleModuleControlDialog
-              v-else-if="showSingleModuleControlDialog"
-              :selectedDevice="selectedDevice"
-              :audioUrls="schedulerAudioUrls"
-              :playlists="schedulerPlaylists"
-              @notify="showNotification"
-              @log="addLog"
-              @close="closeSingleModuleControl"
-            />
             <iframe
-              v-else-if="selectedDevice"
+              v-if="selectedDevice"
               class="device-webview"
               :src="webviewUrl"
               frameborder="0"
@@ -130,13 +125,13 @@
             :class="{ active: selectedGroup === 'All' }"
             @click="selectGroup('All')"
           >
-            All ({{ groupCounts.All }})
+            All
           </button>
           <button
             :class="{ active: selectedGroup === 'NoGroup' }"
             @click="selectGroup('NoGroup')"
           >
-            No Group ({{ groupCounts.NoGroup }})
+            No Group
           </button>
           <button @click="openLogPassChecked" :disabled="checkedDevices.length === 0">Log\Pass</button>
           <button @click="removeChecked" :disabled="checkedDevices.length === 0">Delete</button>
@@ -144,9 +139,9 @@
           <button @click="openSetUsersForChecked" :disabled="checkedDevices.length === 0">Log\Pass (Users) on module</button>
           <!-- <button @click="showUserAccessDialog = true" :disabled="checkedDevices.length === 0">User Access on module</button> -->
           <button @click="toggleCheckAll">{{ isAllChecked ? 'Uncheck All' : 'Check All' }}</button>
-          <button @click="openAddDialog">Add by IP</button>         
+          <button @click="showAddDialog = true">Add by IP</button>          
           <button @click="toggleGroupsPanel">Groups</button>
-          <button @click="toggleSchedulerPanel">Scheduler</button>
+          <button @click="showSchedulerPanel = !showSchedulerPanel; showGroupsPanel = false">Scheduler</button>
         </div>
 
         <div class="main-content split">
@@ -164,15 +159,12 @@
                   <h4>{{ device.name }}</h4>
                   <input type="checkbox" v-model="checkedDevices" :value="device.mac" />
                 </div>
-                <div class="secondary-info manage-card-row">
-                  <span><strong>IP:</strong> {{ device.ip }}</span>
-                  <span><strong>MAC:</strong> {{ device.mac }}</span>
-                  <span><strong>Login:</strong> {{ device.login || '—' }}</span>
-                  <span><strong>Group:</strong> {{ device.group || '—' }}</span>
-                  <div class="card-actions manage-card-actions">
-                    <button @click="openLogPass(device)">Log\Pass</button>
-                    <button @click="removeDevice(device)">Delete</button>
-                  </div>
+                <p class="secondary-info">
+                  <strong>IP:</strong> {{ device.ip }} | <strong>MAC:</strong> {{ device.mac }} <br> <strong>Login:</strong> {{ device.login || '—' }} | <strong>Group:</strong> {{ device.group }}
+                </p>
+                <div class="card-actions">
+                  <button @click="openLogPass(device)">Log\Pass</button>
+                  <button @click="removeDevice(device)">Delete</button>
                 </div>
               </div>
             </div>
@@ -182,7 +174,6 @@
               v-if="showSchedulerPanel"
               :devices="devices"
               :allGroups="allGroups"
-              @log="addLog"
             />
             <div v-else-if="showGroupsPanel">
               <div class="group-controls">
@@ -223,21 +214,6 @@
       <!-- Settings Tab -->
       <div v-else-if="activeTab === 'settings'" class="tab-content">
         <div class="submenu">
-          <button
-            :class="{ active: selectedSettingsPanel === 'config' }"
-            @click="selectedSettingsPanel = 'config'"
-          >
-            Config
-          </button>
-          <button
-            :class="{ active: selectedSettingsPanel === 'log' }"
-            @click="selectedSettingsPanel = 'log'"
-          >
-            Log
-          </button>
-        </div>
-
-        <div v-if="selectedSettingsPanel === 'config'" class="settings-panel">
           <h2>Config</h2>
 
           <div class="config-buttons">
@@ -266,24 +242,12 @@
             </div>
           </div>
         </div>
-        <div v-else-if="selectedSettingsPanel === 'log'" class="settings-panel">
-          <h2>Log</h2>
-          <div v-if="appLog.length === 0" class="log-empty">No log records.</div>
-          <div v-else class="log-list">
-            <div v-for="entry in appLog" :key="entry.id" class="log-entry">
-              <span class="log-time">{{ entry.time }}</span>
-              <span class="log-message">{{ entry.message }}</span>
-            </div>
-          </div>
-        </div>
       </div>      
     </main>
 
     <!-- Диалог AddDeviceDialog: вставляем сюда! -->
     <div v-if="showAddDialog" class="dialog-backdrop">
-      <AddDeviceDialog @close="handleAddDeviceClose" 
-      @notify="showNotification"
-      />
+      <AddDeviceDialog @close="handleAddDeviceClose" />
     </div>
     <!-- Диалог LogPassDialog: вставляем сюда! -->
     <div v-if="showLogPassDialog" class="dialog-backdrop">
@@ -334,20 +298,15 @@
         </div>
       </div>
     </div>
-    
-    <div v-if="showToast" class="toast">
-      {{ toastMessage }}
-    </div>
-    <div v-if="showConfirmDialog" class="dialog-backdrop">
-      <div class="dialog">
-        <h3>Confirmation</h3>
-        <p>{{ confirmMessage }}</p>
-        <div class="actions">
-          <button @click="confirmDelete">Yes</button>
-          <button @click="cancelDelete">No</button>
-        </div>
-      </div>
-    </div>
+
+    <GroupControlDialog
+      v-if="showGroupControlDialog"
+      :devices="devices"
+      :allGroups="allGroups"
+      :audioUrls="schedulerAudioUrls"
+      :playlists="schedulerPlaylists"
+      @close="closeGroupControl"
+    />
   </div>
 </template>
 
@@ -360,7 +319,6 @@ import UsersPassCheckedDialog from './components/UsersPassCheckedDialog.vue';
 import UserAccessDialog from './components/UserAccessDialog.vue';
 import GroupDialog from './components/GroupDialog.vue';
 import GroupControlDialog from './components/GroupControlDialog.vue';
-import SingleModuleControlDialog from './components/SingleModuleControlDialog.vue';
 import SchedulerPanel from './components/SchedulerPanel.vue';
 
 const SCHEDULER_FALLBACK_KEY = 'espControlScheduler';
@@ -375,14 +333,12 @@ export default {
     UserAccessDialog,
     GroupDialog,
     GroupControlDialog,
-    SingleModuleControlDialog,
     SchedulerPanel,    
   },
   data() {
     return {
       activeTab: 'control',
       selectedGroup: 'All',
-      selectedSettingsPanel: 'config',
       selectedDevice: null,
       devices: [],
       checkInterval: null,  // ✅ добавлено
@@ -403,7 +359,6 @@ export default {
       groupAction: '', // 'new' | 'delete' | 'assign' | 'remove'
       availableGroups: [], // берём из storageAPI при загрузке 
       showGroupControlDialog: false,
-      showSingleModuleControlDialog: false,
       selectedGroups: [],
       relayCount: 4,
       selectedRelays: [],
@@ -415,20 +370,10 @@ export default {
       schedulerPlaylists: [],
       showSetPlaylistInline: false,
       selectedPlaylistId: '',
-      showFirmwareUpdateInline: false,
-      firmwareUpdateUrl: '',
-      appLog: [],
-      showWorkTimeInline: false,
-      workTimeEnabled: true,
-      workTimeStart: '08:00',
-      workTimeEnd: '21:00',
       schedulerInterval: null,
       schedulerCheckRunning: false,
       executedScheduledEvents: new Set(),
-      toastMessage: '',
-      showToast: false,
-      showConfirmDialog: false,
-      confirmMessage: '',
+      restoreInputFocusHandler: null,
     }
   },
   computed: {
@@ -438,19 +383,6 @@ export default {
         if (device.group) groups.add(device.group)
       })
       return Array.from(groups).sort()
-    },
-    groupCounts() {
-      const counts = {
-        All: this.devices.length,
-        Offline: this.devices.filter(d => !d.available).length,
-        NoGroup: this.devices.filter(d => !d.group).length
-      };
-
-      this.deviceGroups.forEach(group => {
-        counts[group] = this.devices.filter(d => d.group === group).length;
-      });
-
-      return counts;
     },
     filteredDevices() {
       return this.devices
@@ -479,10 +411,6 @@ export default {
           return device.group === this.selectedGroup;
         })
         .filter(device => this.deviceMatchesSearch(device));
-    },
-    searchResultCount() {
-      if (this.activeTab === 'manage') return this.filteredManageDevices.length;
-      return this.filteredDevices.length;
     },
     selectedDevices() {
       // Возвращает объекты устройств, которые выбраны
@@ -528,19 +456,7 @@ export default {
         this.nowPlayingLabel(device),
         device.wifiRssi,
         device.audioPlaybackState,
-        device.audioNowPlaying,
-        device.firmwareVersion,
-        device.firmwareStatus,
-        device.firmwareProgress,
-        device.ntpServer,
-        this.ntpLabel(device),
-        device.moduleTime,
-        this.timeLabel(device),
-        this.workTimeLabel(device),
-        device.audioWorkTimeEnabled,
-        device.audioWorkStart,
-        device.audioWorkEnd,
-        device.audioWorkAllowed
+        device.audioNowPlaying
       ]
         .filter(value => value !== null && value !== undefined)
         .some(value => String(value).toLowerCase().includes(query));
@@ -556,7 +472,30 @@ export default {
         console.warn('Failed to parse module status:', error);
         return null;
       }
-    },    
+    },
+
+    applyModuleStatus(device, status) {
+      if (!status || Array.isArray(status)) {
+        device.wifiRssi = null;
+        device.audioPlaybackState = '';
+        device.audioNowPlaying = '';
+        device.audioNowPlayingUrl = '';
+        return;
+      }
+
+      const audio = status.audio || status.playback || {};
+      const wifi = status.wifi || {};
+      device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
+      device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
+      device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
+      device.audioNowPlayingUrl = audio.url || status.audioUrl || status.url || '';
+    },
+
+    wifiSignalLabel(device) {
+      if (!device.available) return 'Offline';
+      if (device.wifiRssi === null || device.wifiRssi === undefined || device.wifiRssi === '') return '—';
+      return `${device.wifiRssi} dBm`;
+    },
 
     playbackStateLabel(device) {
       if (!device.available) return 'Offline';
@@ -629,103 +568,22 @@ export default {
         device.audioPlaybackState = '';
         device.audioNowPlaying = '';
         device.audioNowPlayingUrl = '';
-        device.firmwareStatus = '';
-        device.firmwareProgress = null;
-        device.ntpServer = '';
-        device.moduleTime = '';
         return;
       }
 
       const audio = status.audio || status.playback || {};
       const wifi = status.wifi || {};
-      const firmware = status.firmware || {};
-      const ntp = status.ntp || {};
       device.wifiRssi = wifi.rssi ?? status.wifiRssi ?? status.rssi ?? null;
-      device.wifiSsid = wifi.ssid ?? status.wifiSsid ?? '';
       device.audioPlaybackState = audio.state || status.audioState || status.playbackState || '';
       device.audioNowPlaying = audio.current || audio.nowPlaying || audio.currentTrack || status.nowPlaying || '';
       device.audioNowPlayingUrl = audio.url || status.audioUrl || status.url || '';
-      device.audioWorkTimeEnabled = audio.workTimeEnabled ?? status.audioWorkTimeEnabled ?? false;
-      device.audioWorkStart = audio.workStart || status.audioWorkStart || '';
-      device.audioWorkEnd = audio.workEnd || status.audioWorkEnd || '';
-      device.audioWorkAllowed = audio.workAllowed ?? status.audioWorkAllowed ?? true;
-      device.firmwareVersion = firmware.version || status.firmwareVersion || device.firmwareVersion || '';
-      device.firmwareStatus = firmware.status || status.firmwareStatus || '';
-      device.firmwareProgress = firmware.progress ?? status.firmwareProgress ?? null;
-      device.firmwareUpdating = firmware.updating ?? status.firmwareUpdating ?? false;
-      device.ntpServer = ntp.server || status.ntpServer || '';
-      device.moduleTime = ntp.time || status.time || status.moduleTime || '';
-    },
-
-    ntpLabel(device) {
-      if (!device.available) return 'Offline';
-      return device.ntpServer || '—';
-    },
-
-    timeLabel(device) {
-      if (!device.available) return 'Offline';
-       const full = String(device.moduleTime || '').trim();
-      if (!full) return '—';
-      // Module sends "YYYY-MM-DD HH:MM:SS"; show only HH:MM on the card
-      const match = full.match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
-      if (match) return `${match[1].padStart(2, '0')}:${match[2]}`;
-      return full;
-    },
-    workTimeLabel(device) {
-      if (!device.available) return 'Offline';
-      if (!device.audioWorkTimeEnabled) return 'Disabled';
-      const range = `${device.audioWorkStart || '08:00'}-${device.audioWorkEnd || '21:00'}`;
-      return device.audioWorkAllowed === false ? `Blocked (${range})` : `Allowed (${range})`;
-    },
-
-    firmwareLabel(device) {
-      if (!device.available) return 'Offline';
-      const version = device.firmwareVersion || '—';
-      const status = String(device.firmwareStatus || '').toUpperCase();
-      const progress = Number(device.firmwareProgress);
-
-      if ((status === 'UPDATING' || status === 'OTA_START') && Number.isFinite(progress)) {
-        return `${progress}%:${version}`;
-      }
-
-      if (status.startsWith('OTA_')) {
-        const otaValue = status.slice(4);
-        if (/^\d+$/.test(otaValue)) {
-          return `${otaValue}%:${version}`;
-        }
-        if (otaValue === 'OK') {
-          return `OK:${version}`;
-        }
-        if (otaValue.startsWith('ERROR')) {
-          return `${status}:${version}`;
-        }
-      }
-
-      if (status.startsWith('ERROR')) {
-        return `${status}:${version}`;
-      }
-
-      return `OK:${version}`;
-
     },
 
     wifiSignalLabel(device) {
       if (!device.available) return 'Offline';
-
-      const rssi =
-        device.wifiRssi === null ||
-        device.wifiRssi === undefined ||
-        device.wifiRssi === ''
-          ? '—'
-          : `${device.wifiRssi} dBm`;
-
-      if (device.wifiSsid) {
-        return `${rssi} (${device.wifiSsid})`;
-      }
-
-      return rssi;
+      if (device.wifiRssi === null || device.wifiRssi === undefined || device.wifiRssi === '') return '—';
+      return `${device.wifiRssi} dBm`;
     },
-
 
     playbackStateLabel(device) {
       if (!device.available) return 'Offline';
@@ -820,7 +678,7 @@ export default {
     },
 
     startSchedulerRunner() {
-      const intervalMs = 1000;
+      const intervalMs = 10000;
       const check = () => this.runDueSchedulerEvents();
 
       check();
@@ -1007,21 +865,15 @@ export default {
     },
 
     async removeDevice(device) {
-      this.addLog(`Manage: Delete module ${this.deviceLabel(device)} (${device.mac})`);
       console.log('Removing device with MAC:', device.mac);
       await window.storageAPI.removeModule?.(device.mac);
       await this.loadDevices(); // перезагружаешь из JSON
       this.checkedDevices = this.checkedDevices.filter(mac => mac !== device.mac);
     },
 
-    removeChecked() {
-      this.addLog(`Manage: Delete selected modules (${this.checkedDevices.length})`);
-      this.confirmMessage =
-        'Are you sure you want to remove the selected devices?';
-
-      this.showConfirmDialog = true;
-    },
-    async doRemoveChecked() {
+    async removeChecked() {
+      const confirmed = window.confirm('Are you sure you want to remove the selected devices?');
+      if (!confirmed) return;
       for (const mac of this.checkedDevices) {
         console.log('Removing checked device with MAC:', mac);
         await window.storageAPI.removeModule?.(mac);
@@ -1039,7 +891,7 @@ export default {
     },
 
     selectDevice(device) {
-      this.selectedDevice = device      
+      this.selectedDevice = device
     },
     loadAllDevices() {
       this.selectedGroup = 'All';
@@ -1048,8 +900,7 @@ export default {
 
     
     openLogPass(device) {
-      this.addLog(`Manage: Log\\Pass for ${this.deviceLabel(device)}`);
-      this.showNotification(`Open Log\\Pass for ${device.name}`)
+      alert(`Open Log\\Pass for ${device.name}`)
     },
 
     openLogPass(device) {
@@ -1057,23 +908,20 @@ export default {
       this.showLogPassDialog = true;
     },
     openLogPassChecked() {
-      if (this.checkedDevices.length === 0) return;
-      this.addLog(`Manage: Log\\Pass for selected modules (${this.checkedDevices.length})`);
+    if (this.checkedDevices.length === 0) return;
       this.logPassCheckedDevices = [...this.checkedDevices]; // сохраняешь MAC-адреса
       this.showLogPassCheckedDialog = true;
     },
     openSetAuthForChecked() {
-      this.addLog(`Manage: Log\\Pass (Admin) on module for selected modules (${this.checkedDevices.length})`);
       this.selectedAdminDevices = this.selectedDevices;
       if (this.selectedAdminDevices.length === 0) {
-        this.showNotification('No devices selected');
+        alert('No devices selected');
         return;
       }
       this.showSetAdminAuthDialog = true;
     },
     openSetUsersForChecked() {
       if (this.checkedDevices.length === 0) return;
-      this.addLog(`Manage: Log\\Pass (Users) on module for selected modules (${this.checkedDevices.length})`);
       this.usersPassCheckedDevices = this.devices.filter(d => this.checkedDevices.includes(d.mac));
       this.showUsersPassCheckedDialog = true;
     },
@@ -1085,8 +933,6 @@ export default {
       }
     },
     openGroupDialog(action) {
-      const labels = { new: 'New Group', delete: 'Delete Group', assign: 'Add to Group', remove: 'Delete from Group' };
-      this.addLog(`Manage: Groups - ${labels[action] || action}`);
       this.groupAction = action;
       this.showGroupDialog = true;
     },
@@ -1100,11 +946,9 @@ export default {
           const plainGroups = JSON.parse(JSON.stringify(this.availableGroups));
           console.log('[Saving] Plain Groups:', plainGroups);
           await window.storageAPI.setGroups(plainGroups);
-          this.addLog(`Manage: Groups - group "${groupName}" created`);
-          this.showNotification(`✅ Group "${groupName}" created!`);
+          alert(`✅ Group "${groupName}" created!`);
         } else {
-          this.addLog(`Manage: Groups - group "${groupName}" already exists`);
-          this.showNotification(`⚠️ Group "${groupName}" already exists.`);
+          alert(`⚠️ Group "${groupName}" already exists.`);
         }
       }
 
@@ -1119,8 +963,7 @@ export default {
             await window.storageAPI.upsertModule(JSON.parse(JSON.stringify(device)));
           }
         }
-        this.addLog(`Manage: Groups - group "${groupName}" deleted`);
-        this.showNotification(`🗑️ Group "${groupName}" deleted!`);
+        alert(`🗑️ Group "${groupName}" deleted!`);
         await this.loadDevices();
       }
 
@@ -1136,8 +979,7 @@ export default {
           this.availableGroups.push(groupName);
           await window.storageAPI.setGroups(JSON.parse(JSON.stringify(this.availableGroups)));
         }
-        this.addLog(`Manage: Groups - selected modules assigned to "${groupName}"`);
-        this.showNotification(`✅ Devices assigned to "${groupName}"`);
+        alert(`✅ Devices assigned to "${groupName}"`);
         await this.loadDevices();
         this.checkedDevices = [];
       }
@@ -1150,8 +992,7 @@ export default {
             await window.storageAPI.upsertModule(JSON.parse(JSON.stringify(device)));
           }
         }
-        this.addLog(`Manage: Groups - group removed from selected modules`);
-        this.showNotification(`✅ Group removed from selected devices!`);
+        alert(`✅ Group removed from selected devices!`);
         await this.loadDevices();
         this.checkedDevices = [];
       }
@@ -1169,66 +1010,33 @@ export default {
     },
     async toggleGroupsPanel() {
       this.showGroupsPanel = !this.showGroupsPanel;
-      this.addLog(`Manage: Groups panel ${this.showGroupsPanel ? 'opened' : 'closed'}`);
       this.showSchedulerPanel = false;
       if (this.showGroupsPanel) {
         await this.loadGroups();
       }
     },
-    toggleSchedulerPanel() {
-      this.showSchedulerPanel = !this.showSchedulerPanel;
-      this.showGroupsPanel = false;
-      this.addLog(`Manage: Scheduler panel ${this.showSchedulerPanel ? 'opened' : 'closed'}`);
-    },
-    openAddDialog() {
-      this.addLog('Manage: Add by IP opened');
-      this.showAddDialog = true;
-    },
     async handleAddDeviceClose(reload = false) {
       this.showAddDialog = false
       if (reload) {
-        this.addLog('Manage: Add by IP completed')
         await this.loadDevices()   // ✅ вот так подтягивает новые устройства сразу
       }
     },
-    async openGroupControl() {
-      this.showGroupControlDialog = !this.showGroupControlDialog;
-      if (this.showGroupControlDialog) {
-        this.showSingleModuleControlDialog = false;
-        await this.loadSchedulerPresets();
-      }
+    openGroupControl() {
+      this.showGroupControlDialog = true;
+      this.loadSchedulerPresets();
     },
     closeGroupControl() {
       this.showGroupControlDialog = false;
     },
-    async openSingleModuleControl() {
-      if (!this.selectedDevice) {
-        this.showNotification('Select a module first in Control tab.');
-        return;
-      }
-      this.showSingleModuleControlDialog = !this.showSingleModuleControlDialog;
-      if (this.showSingleModuleControlDialog) {
-        this.showGroupControlDialog = false;
-        await this.loadSchedulerPresets();
-      }
-    },
-    closeSingleModuleControl() {
-      this.showSingleModuleControlDialog = false;
-    },    
-    openSettingsTab() {
-      this.activeTab = 'settings';
-      if (!this.selectedSettingsPanel) {
-        this.selectedSettingsPanel = 'config';
-      }
-    },
+
     async toggleSetAudioInline() {
       if (!this.selectedDevice) {
-        this.showNotification('Select a module first in Control tab.');
+        alert('Select a module first in Control tab.');
         return;
       }
       this.showSetAudioInline = !this.showSetAudioInline;
       if (this.showSetAudioInline) {
-        await this.loadSchedulerPresets();
+        await this.loadSchedulerAudioUrls();
         if (!this.schedulerAudioUrls.some(preset => preset.url === this.selectedAudioUrl)) {
           this.selectedAudioUrl = '';
         }
@@ -1237,47 +1045,17 @@ export default {
 
     async toggleSetPlaylistInline() {
       if (!this.selectedDevice) {
-        this.showNotification('Select a module first in Control tab.');
+        alert('Select a module first in Control tab.');
         return;
       }
       this.showSetPlaylistInline = !this.showSetPlaylistInline;
       if (this.showSetPlaylistInline) {
-        this.showFirmwareUpdateInline = false;
         await this.loadSchedulerPresets();
         if (!this.schedulerPlaylists.some(playlist => playlist.id === this.selectedPlaylistId)) {
           this.selectedPlaylistId = '';
         }
       }
-    },
-
-    toggleFirmwareUpdateInline() {
-      if (!this.selectedDevice) {
-        this.showNotification('Select a module first in Control tab.');
-        return;
-      }
-      this.showFirmwareUpdateInline = !this.showFirmwareUpdateInline;
-      if (this.showFirmwareUpdateInline) {
-        this.showSetAudioInline = false;
-        this.showSetPlaylistInline = false;
-        this.showWorkTimeInline = false;
-      }
-    },
-
-    toggleWorkTimeInline() {
-      if (!this.selectedDevice) {
-        this.showNotification('Select a module first in Control tab.');
-        return;
-      }
-      this.showWorkTimeInline = !this.showWorkTimeInline;
-      if (this.showWorkTimeInline) {
-        this.showSetAudioInline = false;
-        this.showSetPlaylistInline = false;
-        this.showFirmwareUpdateInline = false;
-        this.workTimeEnabled = this.selectedDevice.audioWorkTimeEnabled !== false;
-        this.workTimeStart = this.selectedDevice.audioWorkStart || '08:00';
-        this.workTimeEnd = this.selectedDevice.audioWorkEnd || '21:00';
-      }
-    },   
+    },    
 
     async loadSchedulerPresets() {
       try {
@@ -1301,11 +1079,11 @@ export default {
           const text = await response.text();
           throw new Error(`HTTP ${response.status}: ${text}`);
         }
-        this.showNotification(`✅ Audio URL sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
+        alert(`✅ Audio URL sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
         this.showSetAudioInline = false;
       } catch (err) {
         console.error('Failed to set audio URL for selected module:', err);
-        this.showNotification(`❌ Failed to send audio URL: ${err.message}`);
+        alert(`❌ Failed to send audio URL: ${err.message}`);
       }
     },
 
@@ -1332,68 +1110,62 @@ export default {
           const text = await response.text();
           throw new Error(`HTTP ${response.status}: ${text}`);
         }
-        this.showNotification(`✅ Playlist sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
+        alert(`✅ Playlist sent to ${this.selectedDevice.name || this.selectedDevice.ip}`);
         this.showSetPlaylistInline = false;
       } catch (err) {
         console.error('Failed to send playlist to selected module:', err);
-        this.showNotification(`❌ Failed to send playlist: ${err.message}`);
+        alert(`❌ Failed to send playlist: ${err.message}`);
       }
     },
 
-    async sendWorkTimeToSelected() {
-      if (!this.selectedDevice) return;
-      const params = new URLSearchParams({
-        enabled: this.workTimeEnabled ? '1' : '0',
-        start: this.workTimeStart,
-        end: this.workTimeEnd,
+    isEditableField(element) {
+      if (!element || element.disabled || element.readOnly) return false;
+      const tagName = element.tagName?.toLowerCase();
+      return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || element.isContentEditable;
+    },
+
+    restoreEditableFieldFocus(event) {
+      const field = event.target;
+      if (!this.isEditableField(field)) return;
+
+      window.focus();
+      requestAnimationFrame(() => {
+        if (document.activeElement !== field && this.isEditableField(field)) {
+          field.focus({ preventScroll: true });
+        }
       });
-      try {
-        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/audio/worktime?${params.toString()}`);
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`HTTP ${response.status}: ${text}`);
-        }
-        this.selectedDevice.audioWorkTimeEnabled = this.workTimeEnabled;
-        this.selectedDevice.audioWorkStart = this.workTimeStart;
-        this.selectedDevice.audioWorkEnd = this.workTimeEnd;
-        this.showNotification(`✅ Work time saved for ${this.selectedDevice.name || this.selectedDevice.ip}`);
-        this.showWorkTimeInline = false;
-      } catch (err) {
-        console.error('Failed to set work time for selected module:', err);
-        this.showNotification(`❌ Failed to save work time: ${err.message}`);
-      }
     },
 
-    async sendFirmwareUpdateToSelected() {
-      if (!this.selectedDevice || !this.firmwareUpdateUrl) return;
+    enableEditableFieldFocusRestore() {
+      if (this.restoreInputFocusHandler) return;
+      this.restoreInputFocusHandler = this.restoreEditableFieldFocus.bind(this);
+      document.addEventListener('pointerdown', this.restoreInputFocusHandler, true);
+      document.addEventListener('focusin', this.restoreInputFocusHandler, true);
+    },
 
-      if (!this.firmwareUpdateUrl.startsWith('http://')) {
-        this.showNotification('❌ Firmware URL must start with http://');
-        return;
-      }
+    disableEditableFieldFocusRestore() {
+      if (!this.restoreInputFocusHandler) return;
+      document.removeEventListener('pointerdown', this.restoreInputFocusHandler, true);
+      document.removeEventListener('focusin', this.restoreInputFocusHandler, true);
+      this.restoreInputFocusHandler = null;
+    },
 
-      try {
-        const response = await fetch(`http://localhost:3000/proxy/${this.selectedDevice.ip}/firmware/update`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            url: this.firmwareUpdateUrl,
-          }),
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`HTTP ${response.status}: ${text}`);
-        }
-        this.selectedDevice.firmwareStatus = 'OTA_START';
-        this.selectedDevice.firmwareProgress = 0;
-        this.showNotification(`✅ Firmware update started for ${this.selectedDevice.name || this.selectedDevice.ip}`);
-        this.showFirmwareUpdateInline = false;
-      } catch (err) {
-        console.error('Failed to start firmware update for selected module:', err);
-        this.showNotification(`❌ Failed to start firmware update: ${err.message}`);
-      }
+    getImportDevices(importedData) {
+      if (Array.isArray(importedData)) return importedData;
+      if (Array.isArray(importedData?.modules)) return importedData.modules;
+      if (Array.isArray(importedData?.devices)) return importedData.devices;
+      throw new Error("Imported file must contain a device array or a configuration object");
+    },
+
+    getImportGroups(importedData) {
+      return Array.isArray(importedData?.groups) ? importedData.groups.filter(Boolean) : [];
+    },
+
+    getImportScheduler(importedData) {
+      if (!importedData || typeof importedData !== 'object' || Array.isArray(importedData)) return null;
+      return importedData.scheduler && typeof importedData.scheduler === 'object'
+        ? this.normalizeScheduler(importedData.scheduler)
+        : null;
     },
 
     getImportDevices(importedData) {
@@ -1465,12 +1237,12 @@ export default {
           await this.loadSchedulerPresets();
         }
 
-        this.showNotification("✅ Configuration imported successfully!");
+        alert("✅ Configuration imported successfully!");
         await this.loadDevices();
 
       } catch (err) {
         console.error("❌ Import error:", err);
-        this.showNotification("❌ Failed to import configuration. Please check the file format.");
+        alert("❌ Failed to import configuration. Please check the file format.");
       }
 
       event.target.value = "";
@@ -1521,54 +1293,10 @@ export default {
       a.click();
       URL.revokeObjectURL(url);
     },
-    formatLogTime(date = new Date()) {
-      return date.toLocaleString();
-    },
-    async loadAppLog() {
-      if (!window.storageAPI?.loadLog) return;
-      try {
-        const logEntries = await window.storageAPI.loadLog();
-        this.appLog = Array.isArray(logEntries) ? logEntries : [];
-      } catch (error) {
-        console.error('Failed to load application log:', error);
-      }
-    },
-    addLog(message) {
-      const entry = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        time: this.formatLogTime(),
-        message,
-      };
-      this.appLog.unshift(entry);
-      window.storageAPI?.appendLog?.({
-        time: entry.time,
-        message: entry.message,
-      }).catch((error) => {
-        console.error('Failed to write application log:', error);
-      });
-    },
-    deviceLabel(device) {
-      return device?.name || device?.ip || device?.mac || 'module';
-    },
-    showNotification(message) {
-      this.toastMessage = message;
-      this.showToast = true;
 
-      setTimeout(() => {
-        this.showToast = false;
-      }, 3000);
-    },
-    confirmDelete() {
-      this.showConfirmDialog = false;
-      this.doRemoveChecked();
-    },
-    cancelDelete() {
-      this.showConfirmDialog = false;
-    },
   },
   async mounted() {
-    await this.loadAppLog()
-    this.addLog('Program started')
+    this.enableEditableFieldFocusRestore()
     await this.loadDevices()
     await this.loadGroups()
     await this.loadSchedulerPresets()
@@ -1576,6 +1304,7 @@ export default {
     this.startSchedulerRunner()
   },
   beforeUnmount() {
+    this.disableEditableFieldFocusRestore()
     if (this.checkInterval) clearInterval(this.checkInterval)
     if (this.schedulerInterval) clearInterval(this.schedulerInterval)
   }
@@ -1639,16 +1368,6 @@ export default {
   gap: 8px;
   border-top: 1px solid #ddd;
 }
-.inline-time-input {
-  width: 90px;
-}
-
-.inline-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .inline-audio-input {
   min-width: 320px;
   padding: 4px 6px;
@@ -1681,7 +1400,7 @@ main {
 
 /* Левая панель с карточками */
 .left-pane {
-  flex: 1 1 63%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1691,8 +1410,7 @@ main {
 
 /* Правая панель с WebView */
 .right-pane {
-  flex: 0 1 37%;
-  min-width: 560px;
+  flex: 2;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1770,44 +1488,14 @@ main {
 .dialog {
   background: #fff;
   padding: 12px;
-  width: 300px;
+  width: 360px;
   border-radius: 8px;
   box-shadow: 0 0 20px rgba(0,0,0,0.35);
-}
-.actions {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-
-  margin-top: 15px;
-}
-.actions button {
-  background: #007bff;
-  color: white;
-
-  border: none;
-  padding: 8px 15px;
-  border-radius: 4px;
-
-  cursor: pointer;
 }
 .card-actions {
   margin-top: 8px;
   display: flex;
   gap: 8px;
-}
-.manage-card-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 12px;
-  white-space: nowrap;
-  overflow-x: auto;
-}
-.manage-card-actions {
-  margin-top: 0;
-  margin-left: auto;
-  flex: 0 0 auto;
 }
 .card-actions button {
   background: #007bff;
@@ -1849,67 +1537,14 @@ main {
   border-color: #007bff;
 }
 
-.search-wrapper {
-  position: relative;
-  margin-right: auto;  
-  display: inline-flex;
-  align-items: center;
-}
 .search-input {
-  padding: 6px 48px 6px 12px;
+  margin-right: auto;
+  padding: 6px 12px;
   font-size: 14px;
-  border-radius: 4px;   
-  border: 1px solid #ccc;
-}
-
-.search-count {
-  position: absolute;
-  right: 8px;
-  min-width: 24px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #e9ecef;
-  color: #333;
-  font-size: 12px;
-  line-height: 1.2;
-  text-align: center;
-  pointer-events: none;
-}
-.settings-panel {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px;
-}
-
-.log-empty {
-  color: #777;
-  font-style: italic;
-}
-
-.log-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.log-entry {
-  display: flex;
-  gap: 10px;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
   border-radius: 4px;
-  background: #fff;
+  border: 1px solid #ccc;  
 }
 
-.log-time {
-  flex: 0 0 170px;
-  color: #555;
-  font-size: 13px;
-}
-
-.log-message {
-  flex: 1;
-}
 .config-buttons {
   display: flex;
   flex-direction: column;
@@ -1940,20 +1575,6 @@ main {
   border-radius: 4px;
   cursor: pointer;
 }
-.toast {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-
-  background: #007bff;
-  color: white;
-
-  padding: 12px 20px;
-  border-radius: 8px;
-
-  z-index: 9999;
-
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-}
 
 </style>
+

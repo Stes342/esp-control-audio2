@@ -11,5 +11,9 @@ contextBridge.exposeInMainWorld('storageAPI', {
   removeModule: (mac) => ipcRenderer.invoke('removeModule', mac),
   deleteModule: (mac) => ipcRenderer.invoke('deleteModule', mac),
   getGroups: () => ipcRenderer.invoke('loadGroups'),   
-  setGroups: (groups) => ipcRenderer.invoke('saveGroups', groups)
+  setGroups: (groups) => ipcRenderer.invoke('saveGroups', groups),
+  loadScheduler: () => ipcRenderer.invoke('loadScheduler'),
+  saveScheduler: (scheduler) => ipcRenderer.invoke('saveScheduler', scheduler),
+  loadLog: () => ipcRenderer.invoke('loadLog'),
+  appendLog: (entry) => ipcRenderer.invoke('appendLog', entry)
 });

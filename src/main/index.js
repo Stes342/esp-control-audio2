@@ -30,7 +30,16 @@ ipcMain.handle('saveGroups', (_, groups) => {
   console.log('[IPC] saveGroups called:', groups);
   return storage.saveGroups(groups);
 });
-
+ipcMain.handle('loadScheduler', () => storage.loadScheduler());
+ipcMain.handle('saveScheduler', (_, scheduler) => {
+  return storage.saveScheduler(scheduler);
+});
+ipcMain.handle('loadLog', () => {
+  return storage.loadLog();
+});
+ipcMain.handle('appendLog', (_, entry) => {
+  return storage.appendLog(entry);
+});
 
 
 let mainWindow
@@ -42,7 +51,8 @@ function createWindow () {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'), // ✅ подключение preload
       contextIsolation: true,                      // ✅ обязательно
-      nodeIntegration: false                       // ✅ обязательно
+      nodeIntegration: false,                       // ✅ обязательно
+      backgroundThrottling: false
     }
   })
 
@@ -60,7 +70,7 @@ function createWindow () {
   }
 
   // Опционально:
-   mainWindow.webContents.openDevTools()
+  // mainWindow.webContents.openDevTools()
 }
 
 //app.whenReady().then(createWindow)
@@ -285,4 +295,3 @@ app.on('activate', () => {
     createWindow()
   }
 })
-

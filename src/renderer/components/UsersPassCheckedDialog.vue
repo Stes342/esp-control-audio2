@@ -1,19 +1,9 @@
 <template>
   <div class="dialog">
     <h3>Update Users Passwords on module(s)</h3>
-    <label>user1 Password:
+    <label>user Password:
       <input v-model="user1" type="password" placeholder="Leave empty to skip" />
     </label>
-    <label>user2 Password:
-      <input v-model="user2" type="password" placeholder="Leave empty to skip" />
-    </label>
-    <label>user3 Password:
-      <input v-model="user3" type="password" placeholder="Leave empty to skip" />
-    </label>
-    <label>user4 Password:
-      <input v-model="user4" type="password" placeholder="Leave empty to skip" />
-    </label>
-
     <div class="actions">
       <button @click="updateUsersPass">Apply</button>
       <button @click="$emit('close')">Cancel</button>

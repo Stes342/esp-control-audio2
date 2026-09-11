@@ -15,16 +15,16 @@ const char* hostname = "audio-control";
 #define RELAY_COUNT 4
 const uint8_t RELAY_PINS[RELAY_COUNT] = {5, 6, 7, 15};
 // I2S DAC pins (ESP32-S3)
-#define I2S_BCLK 4
-#define I2S_LRC  5
-#define I2S_DOUT 6
+#define I2S_BCLK 5
+#define I2S_LRC  6
+#define I2S_DOUT 7
 #define AUDIO_PLAYLIST_MAX_ITEMS 10
 #define AUDIO_PLAYLIST_END_GRACE_MS 1500
 #define AUDIO_PLAYLIST_EARLY_END_PROTECT_MS 15000
 #define AUDIO_PLAYLIST_EARLY_END_GRACE_MS 8000
 #define AUDIO_PLAYLIST_STATE_CHECK_MS 200
 #define AUDIO_PLAYLIST_START_TIMEOUT_MS 12000
-#define FW_VERSION "1.1.1"
+#define FW_VERSION "1.0.2"
 #define OTA_PROGRESS_STEP 20
 #define AUDIO_WORK_TIME_CHECK_MS 60000
 unsigned long playlistStoppedAt = 0;

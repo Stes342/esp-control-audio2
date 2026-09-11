@@ -1,7 +1,7 @@
 {
-  "name": "PowerControl",
+  "name": "AudioControl",
   "version": "1.0.0",
-  "description": "Power Control Application",   
+  "description": "Audio Control Application",   
   "author": "Roman Stebletzov",
   "main": "src/main/index.js",
   "scripts": {
@@ -13,7 +13,7 @@
   },
   "build": {
     "appId": "com.example.esp",
-    "productName": "Power Control",
+    "productName": "Audio Control",
     "directories": {
       "buildResources": "assets"
     },
@@ -25,8 +25,21 @@
     ],
     "win": {
       "icon": "assets/app.ico",
-      "target": "nsis"
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}_Setup_${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}_Portable_${version}.${ext}",
+      "requestExecutionLevel": "user"
     }
+
   },
   "dependencies": {
     "axios": "^1.10.0",    
